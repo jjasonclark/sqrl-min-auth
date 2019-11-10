@@ -1,0 +1,199 @@
+service: sqrl-min-auth
+
+custom:
+  database: ${file(./secrets.json):database}
+  applicationName: ${self:service}-${opt:stage,'dev'}
+  connectionString:
+    Fn::Join:
+      - ''
+      - - 'postgres://${self:custom.database.username}:${self:custom.database.password}@'
+        - !GetAtt AppDB.Endpoint.Address
+        - ':'
+        - !GetAtt AppDB.Endpoint.Port
+        - '/${self:custom.database.database}'
+  apiBaseUrl:
+    Fn::Join:
+      - ''
+      - - 'https://'
+        - !Ref ApiGatewayRestApi
+        - '.execute-api.'
+        - !Ref AWS::Region
+        - '.'
+        - !Ref AWS::URLSuffix
+        - "/${opt:stage,'dev'}"
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  logs:
+    frameworkLambda: true
+  environment:
+    NODE_ENV: production
+  tags:
+    Application: ${self:custom.applicationName}
+    Environment: ${opt:stage,'dev'}
+    Service: ${self:service}
+
+functions:
+  dbMigrate:
+    handler: src/handlers/db-migration.handler
+    description: Migrate the DB
+    memorySize: 128
+    timeout: 60
+    environment:
+      POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+    vpc:
+      securityGroupIds:
+        - !GetAtt AppDBVPC.DefaultSecurityGroup
+      subnetIds:
+        - !Ref AppDBSubnetA
+        - !Ref AppDBSubnetB
+  nutSweeper:
+    handler: src/handlers/nut-sweeper.handler
+    description: Deletes old or used nuts
+    memorySize: 128
+    timeout: 60
+    environment:
+      POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+    vpc:
+      securityGroupIds:
+        - !GetAtt AppDBVPC.DefaultSecurityGroup
+      subnetIds:
+        - !Ref AppDBSubnetA
+        - !Ref AppDBSubnetB
+    events:
+      - schedule: rate(1 day)
+  sqrl:
+    handler: src/handlers/sqrl.handler
+    description: Minimal SQRL auth server
+    memorySize: 128
+    timeout: 30
+    environment:
+      POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+      URL_BASE: ${self:custom.apiBaseUrl}
+    vpc:
+      securityGroupIds:
+        - !GetAtt AppDBVPC.DefaultSecurityGroup
+      subnetIds:
+        - !Ref AppDBSubnetA
+        - !Ref AppDBSubnetB
+    events:
+      - http:
+          method: POST
+          path: /sqrl
+  authenticate:
+    handler: src/handlers/authenticate.handler
+    description: Redirect page from /sqrl
+    memorySize: 128
+    timeout: 30
+    environment:
+      POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+    vpc:
+      securityGroupIds:
+        - !GetAtt AppDBVPC.DefaultSecurityGroup
+      subnetIds:
+        - !Ref AppDBSubnetA
+        - !Ref AppDBSubnetB
+    events:
+      - http:
+          method: GET
+          path: /authenticate
+  urls:
+    handler: src/handlers/urls.handler
+    description: JSON endpoint with fresh urls and nuts
+    memorySize: 128
+    timeout: 3
+    environment:
+      POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+      URL_BASE: ${self:custom.apiBaseUrl}
+    vpc:
+      securityGroupIds:
+        - !GetAtt AppDBVPC.DefaultSecurityGroup
+      subnetIds:
+        - !Ref AppDBSubnetA
+        - !Ref AppDBSubnetB
+    events:
+      - http:
+          method: GET
+          path: /urls
+  login:
+    handler: src/handlers/get.handler
+    description: Minimal SQRL auth page
+    memorySize: 128
+    timeout: 30
+    events:
+      - http:
+          method: GET
+          path: /sqrl
+
+resources:
+  Resources:
+    AppDBVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        InstanceTenancy: default
+    AppDBSubnetA:
+      Type: AWS::EC2::Subnet
+      DependsOn: AppDBVPC
+      Properties:
+        VpcId: !Ref AppDBVPC
+        AvailabilityZone: us-east-1a
+        CidrBlock: 10.0.0.0/24
+    AppDBSubnetB:
+      Type: AWS::EC2::Subnet
+      DependsOn: AppDBVPC
+      Properties:
+        VpcId: !Ref AppDBVPC
+        AvailabilityZone: us-east-1b
+        CidrBlock: 10.0.1.0/24
+    AppDBSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupName: ${self:custom.applicationName}
+        DBSubnetGroupDescription: App DB group
+        SubnetIds:
+          - !Ref AppDBSubnetA
+          - !Ref AppDBSubnetB
+        Tags:
+          - Key: Application
+            Value: ${self:custom.applicationName}
+          - Key: Environment
+            Value: ${opt:stage,'dev'}
+          - Key: Service
+            Value: ${self:service}
+    AppDB:
+      Type: AWS::RDS::DBCluster
+      Properties:
+        DBClusterIdentifier: ${self:custom.applicationName}
+        DatabaseName: ${self:custom.database.database}
+        Engine: aurora-postgresql
+        EngineMode: serverless
+        MasterUsername: ${self:custom.database.username}
+        MasterUserPassword: ${self:custom.database.password}
+        DBSubnetGroupName: !Ref AppDBSubnetGroup
+        VpcSecurityGroupIds:
+          - !GetAtt AppDBVPC.DefaultSecurityGroup
+        ScalingConfiguration:
+          AutoPause: true
+        Tags:
+          - Key: Application
+            Value: ${self:custom.applicationName}
+          - Key: Environment
+            Value: ${opt:stage,'dev'}
+          - Key: Service
+            Value: ${self:service}
+
+Outputs:
+  DBHost:
+    Description: Connection host for the database
+    Value: !GetAtt AppDB.Endpoint.Address
+    Export:
+      Name: ${self:custom.applicationName}-DBHost
+  DBPort:
+    Description: Connection port for the database
+    Value: !GetAtt AppDB.Endpoint.Port
+    Export:
+      Name: ${self:custom.applicationName}-DBPort
