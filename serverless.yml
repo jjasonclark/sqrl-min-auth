@@ -102,7 +102,7 @@ functions:
     handler: src/handlers/urls.handler
     description: JSON endpoint with fresh urls and nuts
     memorySize: 128
-    timeout: 3
+    timeout: 30
     environment:
       POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
       URL_BASE: ${self:custom.apiBaseUrl}
