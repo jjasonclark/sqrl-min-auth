@@ -4,18 +4,15 @@ const logger = require('pino')({ level: 'debug' });
 const get = require('dlv');
 const { db } = require('../lib/db');
 
-const findCode = async (code, requestIp) => {
+const useCode = async (code, requestIp) => {
   try {
     logger.info({ code, requestIp }, 'Finding unused code');
     const result = await db.oneOrNone(
-      'SELECT code,ip FROM nuts WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1',
-      [code]
+      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING user_id',
+      [code, requestIp]
     );
     logger.info({ code, result, requestIp }, 'DB result');
-    if (requestIp === get(result, 'ip')) {
-      logger.info('Returning valid code');
-      return code;
-    }
+    return result;
   } catch (ex) {
     logger.error(ex);
     logger.info({ nut }, 'Failed to find code');
@@ -23,33 +20,15 @@ const findCode = async (code, requestIp) => {
   return null;
 };
 
-const markCodeIssued = async code => {
-  try {
-    logger.info({ code }, 'Marking code used');
-    await db.none(
-      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND nut = $1',
-      [code]
-    );
-    logger.debug({ code }, 'Code saved');
-    return true;
-  } catch (ex) {
-    logger.error(ex);
-    logger.info({ nut }, 'Failed to update code used time');
-  }
-  return false;
-};
-
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');
 
   const codeParam = get(event, 'queryStringParameters.code');
   const requestIp = get(event, 'requestContext.identity.sourceIp');
-  const notUsed = await findCode(codeParam, requestIp);
+  const foundNut = await useCode(codeParam, requestIp);
   let body;
-  if (notUsed) {
-    logger.info({ notUsed, codeParam }, 'Found unused code');
-    // TODO: verify code was used
-    await markCodeIssued(codeParam);
+  if (foundNut) {
+    logger.info({ foundNut, codeParam }, 'Found unused code');
     body = `<!DOCTYPE html>
     <html lang="en">
       <head>
@@ -58,7 +37,7 @@ const handler = async (event, context) => {
       </head>
       <body>
         <div>
-          logged in
+          logged in as ${foundNut.user_id}
         </div>
       </body>
     </html>`;

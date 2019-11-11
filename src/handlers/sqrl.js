@@ -114,7 +114,7 @@ const sqrlCrud = {
     const user = await db.one('INSERT INTO users default VALUES RETURNING id');
     if (!user) {
       // something went wrong
-      return false;
+      return null;
     }
     const sqrlIdk = await db.one(
       'INSERT INTO sqrl (idk,user_id,suk,vuk,hardlock,sqrlonly) VALUES ($1,$2,$3,$4,$5,$6) RETURNING idk',
@@ -123,7 +123,7 @@ const sqrlCrud = {
     if (sqrlIdk) {
       // Account setup successfully
       logger.info('Account created');
-      return true;
+      return user.id;
     } else {
       // something went wrong
       logger.info(
@@ -133,18 +133,17 @@ const sqrlCrud = {
       // remove the created user
       await db.none('DELETE FROM users WHERE id = $1', [user.id]);
       logger.info({ user }, 'User deleted');
-      return false;
+      return null;
     }
   },
   async retrieve(idk) {
     const result = await db.oneOrNone(
-      'SELECT user_id, suk, vuk, enabled, hardlock, sqrlonly FROM sqrl WHERE idk = $1',
+      'SELECT user_id, suk, vuk, enabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk = $1',
       [idk]
     );
     if (!result) {
       return null;
     }
-    logger.info({ result }, 'retrieve result');
     return {
       ...result,
       suk: result.suk ? result.suk.toString().trim() : null,
@@ -170,6 +169,12 @@ const sqrlCrud = {
     // Delete user
     await db.none('DELETE FROM users WHERE id = $1', [deletedSqrl.user_id]);
     logger.info({ userId: deletedSqrl.user_id }, 'Deleted user');
+  },
+  // mark old idk as superseded
+  async supersede(idk) {
+    await db.none('UPDATE sqrl SET superseded=NOW() WHERE idk = $1', [
+      client.pidk
+    ]);
   }
 };
 
@@ -223,11 +228,24 @@ const nutCrud = {
     }
   },
 
-  async markIdentified(code) {
+  async markUser(nut, userId) {
     try {
       await db.none(
-        'UPDATE nuts SET identified=NOW() WHERE identified IS NULL AND nut = $1',
-        [code]
+        'UPDATE nuts SET user_id=$1 WHERE user_id IS NULL AND nut = $2',
+        [userId, nut]
+      );
+      return true;
+    } catch (ex) {
+      logger.error(ex);
+      return false;
+    }
+  },
+
+  async markIdentified(code, userId) {
+    try {
+      await db.none(
+        'UPDATE nuts SET identified=NOW(),user_id=$1 WHERE identified IS NULL AND nut = $2',
+        [userId, code]
       );
       return true;
     } catch (ex) {
@@ -267,7 +285,6 @@ const nutCrud = {
           identified: result.identified,
           issued: result.issued
         };
-        logger.info({ result, formatted }, 'Found nut');
         return formatted;
       }
     } catch (ex) {
@@ -292,6 +309,7 @@ const handler = async (event, context) => {
     const request = querystring.decode(body);
     const client = decodeSQRLPack(base64url.decode(get(request, 'client', '')));
     // TODO: Validate size of incoming body, request, and client
+    // TODO: verify client param has required values such as idk
     // const server = base64url.decode(get(request, 'server', ''));
     const previousHmac = signHmac(get(request, 'server'));
 
@@ -349,13 +367,8 @@ const handler = async (event, context) => {
       }
       logger.debug('Signature verified');
 
-      if (client.pidk && !verifyPreviousSignature(request, client)) {
-        // TODO: Should we failing this command right away?
-        // Cannot process command
-        clientReturn.tif |= 0x40 | 0x80;
-        return await createReturn(clientReturn);
-      }
-      logger.debug('Previous signature verified');
+      // Check IP if same ip check is requested
+      validNut = validNut && (!client.opt.includes('noiptest') || sameIp);
 
       // TODO: Should return url only if nut valid?
       // All commands except query get url when CPS is requested
@@ -366,31 +379,38 @@ const handler = async (event, context) => {
         })}`;
       }
 
-      // TODO: verify client param has a idk
       // look up user
+      logger.debug({ client }, 'Looking up SQRL data');
       const sqrlData = await sqrlCrud.retrieve(client.idk);
       // Found current idk
       if (sqrlData) {
         logger.info({ sqrlData }, 'Found existing sqrl data');
         sqrlData.idk = client.idk;
-        clientReturn.tif |= 0x01;
-        if (!sqrlData.enabled) {
-          clientReturn.tif |= 0x08;
+        if (existingNut && !existingNut.user_id) {
+          await nutCrud.markUser(existingNut.nut, sqrlData.user_id);
+        } else {
+          // user_id matches
+          validNut =
+            validNut && get(sqrlData, 'user_id') === existingNut.user_id;
         }
-        // Did the client ask for suk values?
-        if (client.opt.includes('suk')) {
-          clientReturn.suk = sqrlData.suk;
-          clientReturn.vuk = sqrlData.vuk;
+        await nutCrud.markUser(clientReturn.nut, sqrlData.user_id);
+        if (sqrlData.superseded) {
+          logger.info({ previous }, 'Found a previously changed idk');
+          clientReturn.tif |= 0x200;
+        } else {
+          clientReturn.tif |= 0x01;
+          if (!sqrlData.enabled) {
+            clientReturn.tif |= 0x08;
+          }
+          // Did the client ask for suk values?
+          if (client.opt.includes('suk')) {
+            clientReturn.suk = sqrlData.suk;
+            clientReturn.vuk = sqrlData.vuk;
+          }
         }
       } else {
         logger.info({ idk: client.idk }, 'Could not find sqrl data');
       }
-
-      // Check IP if same ip check is requested
-      validNut =
-        validNut &&
-        // ip match if requested
-        (!client.opt.includes('noiptest') || sameIp);
 
       if (!validNut) {
         logger.info({ existingNut }, 'Invalid nut');
@@ -407,8 +427,19 @@ const handler = async (event, context) => {
       // Initial nuts are only allowed to query
       if (client.cmd !== 'query' && existingNut.nut === existingNut.code) {
         clientReturn.tif |= 0x20;
+        logger.debug(
+          { client, existingNut },
+          'Initial nut used for non-query command'
+        );
+      } else if (client.cmd !== 'query' && clientReturn.tif & 0x200) {
+        clientReturn.tif |= 0x40;
+        logger.debug(
+          { client, clientReturn },
+          'Superseded idk used for non-query command'
+        );
       } else {
         // Process SQRL command
+        logger.debug({ cmd: client.cmd }, 'Processing command');
         switch (client.cmd) {
           case 'query':
             {
@@ -416,6 +447,33 @@ const handler = async (event, context) => {
                 // Add the suk value so user can enable account
                 clientReturn.suk = sqrlData.suk;
                 clientReturn.vuk = sqrlData.vuk;
+              } else if (client.pidk) {
+                if (!verifyPreviousSignature(request, client)) {
+                  // Cannot process command
+                  clientReturn.tif |= 0x40 | 0x80;
+                } else {
+                  logger.debug('Previous signature verified');
+                  const previousSqrl = await sqrlCrud.retrieve(client.pidk);
+                  if (previousSqrl) {
+                    await nutCrud.markUser(
+                      clientReturn.nut,
+                      previousSqrl.user_id
+                    );
+                    if (existingNut && !existingNut.user_id) {
+                      await nutCrud.markUser(
+                        existingNut.nut,
+                        previousSqrl.user_id
+                      );
+                    }
+                    if (previousSqrl.superseded) {
+                      clientReturn.tif |= 0x200;
+                    } else {
+                      clientReturn.tif |= 0x02;
+                      clientReturn.suk = sqrlData.suk;
+                      clientReturn.vuk = sqrlData.vuk;
+                    }
+                  }
+                }
               }
             }
             break;
@@ -424,7 +482,10 @@ const handler = async (event, context) => {
               if (sqrlData) {
                 if (sqrlData.enabled) {
                   // Log in an account
-                  await nutCrud.markIdentified(existingNut.code);
+                  await nutCrud.markIdentified(
+                    existingNut.code,
+                    sqrlData.user_id
+                  );
                   // TODO: should we update sqrlonly and hardlock?
                 } else {
                   if (isValidUnlock(request, sqrlData.vuk)) {
@@ -433,7 +494,10 @@ const handler = async (event, context) => {
                     // reset disabled code
                     clientReturn.tif &= ~0x08;
                     // Log in an account
-                    await nutCrud.markIdentified(existingNut.code);
+                    await nutCrud.markIdentified(
+                      existingNut.code,
+                      sqrlData.user_id
+                    );
                   } else {
                     // Command failed
                     clientReturn.tif |= 0x40;
@@ -442,18 +506,82 @@ const handler = async (event, context) => {
                     clientReturn.vuk = sqrlData.vuk;
                   }
                 }
+              } else if (client.pidk) {
+                if (!verifyPreviousSignature(request, client)) {
+                  // Cannot process command
+                  clientReturn.tif |= 0x40 | 0x80;
+                } else {
+                  logger.debug(
+                    'Previous signature verified; Attempting superseded'
+                  );
+                  const previousSqrl = await sqrlCrud.retrieve(client.pidk);
+                  if (!previousSqrl) {
+                    clientReturn.tif |= 0x40 | 0x80;
+                  } else {
+                    await nutCrud.markUser(
+                      clientReturn.nut,
+                      previousSqrl.user_id
+                    );
+                    if (existingNut && !existingNut.user_id) {
+                      await nutCrud.markUser(
+                        existingNut.nut,
+                        previousSqrl.user_id
+                      );
+                    }
+                    if (previousSqrl.superseded) {
+                      clientReturn.tif |= 0x200 | 0x40 | 0x80;
+                    } else {
+                      if (!isValidUnlock(request, previousSqrl.vuk)) {
+                        clientReturn.tif |= 0x40 | 0x80;
+                      } else {
+                        logger.info('Creating new idk from previous account');
+                        const success = await sqrlCrud.create({
+                          idk: client.idk,
+                          suk: client.suk,
+                          vuk: client.vuk,
+                          user_id: previousSqrl.user_id,
+                          hardlock: client.opt.includes('hardlock'),
+                          sqrlonly: client.opt.includes('sqrlonly')
+                        });
+                        if (!success) {
+                          logger.debug(
+                            { client, request },
+                            'Could not create new idk'
+                          );
+                          clientReturn.tif |= 0x40;
+                        } else {
+                          // mark old idk as superseded
+                          await sqrlCrud.supersede(client.pidk);
+                          // Flag this is new idk
+                          clientReturn.tif |= 0x01;
+                          // Reset pidk flag
+                          clientReturn.tif &= ~0x02;
+                          // Log in an account
+                          await nutCrud.markIdentified(
+                            existingNut.code,
+                            previousSqrl.user_id
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
               } else {
                 logger.info('Unknown user. Creating account');
-                const success = await sqrlCrud.create({
+                const userId = await sqrlCrud.create({
                   idk: client.idk,
                   suk: client.suk,
                   vuk: client.vuk,
                   hardlock: client.opt.includes('hardlock'),
                   sqrlonly: client.opt.includes('sqrlonly')
                 });
-                if (success) {
+                if (userId) {
                   clientReturn.tif |= 0x01;
-                  await nutCrud.markIdentified(existingNut.code);
+                  await nutCrud.markUser(clientReturn.nut, userId);
+                  if (existingNut && !existingNut.user_id) {
+                    await nutCrud.markUser(existingNut.nut, userId);
+                  }
+                  await nutCrud.markIdentified(existingNut.code, userId);
                 } else {
                   logger.info({ client }, 'Could not create account');
                   clientReturn.tif |= 0x40;
@@ -475,7 +603,10 @@ const handler = async (event, context) => {
                     clientReturn.tif &= ~0x08;
                     // TODO: verify should login after enable
                     // Log in an account
-                    await nutCrud.markIdentified(existingNut.code);
+                    await nutCrud.markIdentified(
+                      existingNut.code,
+                      sqrlData.user_id
+                    );
                   } else {
                     // Command failed
                     clientReturn.tif |= 0x40;
@@ -499,7 +630,11 @@ const handler = async (event, context) => {
                   { userId: sqrlData.user_id },
                   'Disabled sqrl login for user'
                 );
-                // TODO: Should we clear the URL on CPS?
+                // Log in an account
+                await nutCrud.markIdentified(
+                  existingNut.code,
+                  sqrlData.user_id
+                );
               } else {
                 logger.debug('Cannot disable account');
                 // Command failed
@@ -517,6 +652,11 @@ const handler = async (event, context) => {
                 );
                 // Delete login to user association
                 await sqrlCrud.delete(client.idk);
+                // Log in an account
+                await nutCrud.markIdentified(
+                  existingNut.code,
+                  sqrlData.user_id
+                );
               } else {
                 logger.debug('Cannot remove account');
                 // Command failed
