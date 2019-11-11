@@ -370,15 +370,6 @@ const handler = async (event, context) => {
       // Check IP if same ip check is requested
       validNut = validNut && (!client.opt.includes('noiptest') || sameIp);
 
-      // TODO: Should return url only if nut valid?
-      // All commands except query get url when CPS is requested
-      if (client.opt.includes('cps') && client.cmd !== 'query') {
-        logger.info('Returning CPS return url');
-        clientReturn.url = `${successUrl}?${querystring.encode({
-          code: validNut ? get(existingNut, 'code') : get(clientReturn, 'nut')
-        })}`;
-      }
-
       // look up user
       logger.debug({ client }, 'Looking up SQRL data');
       const sqrlData = await sqrlCrud.retrieve(client.idk);
@@ -412,6 +403,14 @@ const handler = async (event, context) => {
         logger.info({ idk: client.idk }, 'Could not find sqrl data');
       }
 
+      // All commands except query get url when CPS is requested
+      if (client.opt.includes('cps') && client.cmd !== 'query') {
+        logger.info('Returning CPS return url');
+        clientReturn.url = `${successUrl}?${querystring.encode({
+          code: validNut ? get(existingNut, 'code') : get(clientReturn, 'nut')
+        })}`;
+      }
+
       if (!validNut) {
         logger.info({ existingNut }, 'Invalid nut');
         // something wrong with input nut
@@ -419,10 +418,7 @@ const handler = async (event, context) => {
         clientReturn.tif |= 0x40 | 0x20;
         return await createReturn(clientReturn);
       }
-      logger.debug(
-        { client, clientReturn },
-        'Nut verified; Processing command'
-      );
+      logger.debug({ client, clientReturn }, 'Nut verified');
 
       // Initial nuts are only allowed to query
       if (client.cmd !== 'query' && existingNut.nut === existingNut.code) {
