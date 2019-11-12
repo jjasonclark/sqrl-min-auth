@@ -2,23 +2,7 @@
 
 const logger = require('pino')({ level: 'debug' });
 const get = require('dlv');
-const { db } = require('../lib/db');
-
-const useCode = async (code, requestIp) => {
-  try {
-    logger.info({ code, requestIp }, 'Finding unused code');
-    const result = await db.oneOrNone(
-      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING user_id',
-      [code, requestIp]
-    );
-    logger.info({ code, result, requestIp }, 'DB result');
-    return result;
-  } catch (ex) {
-    logger.error(ex);
-    logger.info({ nut }, 'Failed to find code');
-  }
-  return null;
-};
+const { useCode } = require('../lib/db/nut');
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');

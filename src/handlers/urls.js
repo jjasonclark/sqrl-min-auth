@@ -6,27 +6,7 @@ const url = require('url');
 const base64url = require('universal-base64url');
 const get = require('dlv');
 const apiBaseUrl = new url.URL(process.env.URL_BASE);
-const { db } = require('../lib/db');
-const { createNut } = require('../lib/nut');
-
-const createInitialNut = async requestIP => {
-  try {
-    // TODO: verify created not isn't already in DB
-    const nut = await createNut();
-    logger.info({ nut, requestIP }, 'Inserting new initial nut');
-    // TODO: verify write
-    await db.none('INSERT INTO nuts (nut,code,ip) VALUES ($1,$2,$3)', [
-      nut,
-      nut,
-      requestIP
-    ]);
-    return nut;
-  } catch (ex) {
-    logger.info({ requestIP }, 'Create initial nut failed');
-    logger.error(ex);
-    return '';
-  }
-};
+const { createInitialNut } = require('../lib/db/nut');
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');

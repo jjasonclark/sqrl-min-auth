@@ -5,7 +5,7 @@ const logger = require('pino')({ level: 'debug' });
 const fs = require('fs');
 const util = require('util');
 const readFile = util.promisify(fs.readFile);
-const { db } = require('../lib/db');
+const { db } = require('../lib/db/db');
 const sqlPath = path.resolve(__dirname, '..', '..', 'sql/create.sql');
 
 const applySqlFile = async sqlPath => {

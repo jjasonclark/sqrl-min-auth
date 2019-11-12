@@ -1,7 +1,7 @@
 'use strict';
 
 const logger = require('pino')({ level: 'debug' });
-const { db } = require('../lib/db');
+const { db } = require('../lib/db/db');
 
 const handler = async (event, context) => {
   try {
