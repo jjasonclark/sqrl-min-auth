@@ -1,9 +1,16 @@
 'use strict';
 
-const logger = require('pino')({ level: 'debug' });
+const url = require('url');
+const logger = require('pino')({ level: 'info' });
+const get = require('dlv');
+const cookie = require('cookie');
+const apiBaseUrl = new url.URL(process.env.URL_BASE);
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');
+  const cookies = get(event, 'headers.Cookie', '');
+  const userCookies = get(cookie.parse(cookies), 'user');
+  logger.debug({ cookies, userCookies }, 'Found cookies');
   const fetchUrl = `https://${
     event.requestContext.domainName
   }${event.requestContext.path
@@ -13,7 +20,23 @@ const handler = async (event, context) => {
       event.requestContext.path.length -
         event.requestContext.resourcePath.length
     )}/urls`;
-  const body = `<!DOCTYPE html>
+  let body;
+  if (userCookies) {
+    body = `<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <title>SQRL-Min-Auth</title>
+    </head>
+    <body>
+      <div>You are user ${userCookies}</di>
+      <form action="${apiBaseUrl.pathname}/logout">
+        <input type="submit" value="Logout" />
+      </form>
+    </body>
+  </html>`;
+  } else {
+    body = `<!DOCTYPE html>
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -27,6 +50,21 @@ const handler = async (event, context) => {
       <script crossorigin src="https://unpkg.com/qrjs2@0.1.7/js/qrjs2.js"></script>
       <script crossorigin src="https://unpkg.com/unfetch/polyfill"></script>
       <script>
+        function pollLogin(pollUrl) {
+          return fetch(pollUrl)
+            .then(res=> {
+              if(res.status !== 404) {
+                document.location.reload();
+              } else {
+                setTimeout(pollLogin, 5000, pollUrl);
+              }
+            })
+            .catch(error => {
+              console.error(error);
+              setTimeout(pollLogin, 5000, pollUrl);
+            });
+        }
+
         function createCpsTestUrl() {
           return 'http://localhost:25519/' + Date.now() + '.gif';
         }
@@ -56,6 +94,7 @@ const handler = async (event, context) => {
               document.getElementById('sqrlqr').appendChild(sqrlQrSvg);
               document.getElementById('sqrlLogin').href = urls.login;
               setCpsLoginLink(urls.cps);
+              pollLogin(urls.poll);
             });
         }
 
@@ -63,11 +102,12 @@ const handler = async (event, context) => {
       </script>
     </body>
   </html>`;
+  }
   const returnValue = {
     statusCode: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      Expires: 'Mon, 01 Jan 1990 00:00:00 GMT',
+      Expires: 'Sun, 06 Nov 1994 08:49:37 GMT',
       Pragma: 'no-cache',
       Vary: 'Origin',
       'Cache-control': 'no-cache',

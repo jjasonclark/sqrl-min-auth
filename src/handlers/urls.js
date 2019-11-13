@@ -1,6 +1,6 @@
 'use strict';
 
-const logger = require('pino')({ level: 'debug' });
+const logger = require('pino')({ level: 'info' });
 const querystring = require('querystring');
 const url = require('url');
 const base64url = require('universal-base64url');
@@ -27,13 +27,14 @@ const handler = async (event, context) => {
           can: base64url.encode(path)
         })}`
       )}`,
-      login: `sqrl://${domain}${path}?${querystring.encode(urlReturn)}`
+      login: `sqrl://${domain}${path}?${querystring.encode(urlReturn)}`,
+      poll: `${apiBaseUrl}/authenticate?code=${urlReturn.nut}`
     });
     const results = {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        Expires: 'Mon, 01 Jan 1990 00:00:00 GMT',
+        Expires: 'Sun, 06 Nov 1994 08:49:37 GMT',
         Pragma: 'no-cache',
         Vary: 'Origin',
         'Cache-control': 'no-cache',

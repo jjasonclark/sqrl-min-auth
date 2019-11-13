@@ -88,6 +88,7 @@ functions:
     timeout: 30
     environment:
       POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
+      URL_BASE: ${self:custom.apiBaseUrl}
     vpc:
       securityGroupIds:
         - !GetAtt AppDBVPC.DefaultSecurityGroup
@@ -117,14 +118,30 @@ functions:
           method: GET
           path: /urls
   login:
-    handler: src/handlers/get.handler
+    handler: src/handlers/login.handler
     description: Minimal SQRL auth page
     memorySize: 128
     timeout: 30
+    environment:
+      URL_BASE: ${self:custom.apiBaseUrl}
     events:
       - http:
           method: GET
           path: /sqrl
+  logout:
+    handler: src/handlers/logout.handler
+    description: Logout
+    memorySize: 128
+    timeout: 30
+    environment:
+      URL_BASE: ${self:custom.apiBaseUrl}
+    events:
+      - http:
+          method: GET
+          path: /logout
+      - http:
+          method: POST
+          path: /logout
 
 resources:
   Resources:

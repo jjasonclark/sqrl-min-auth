@@ -86,7 +86,7 @@ const createReturn = async clientReturn => {
     statusCode: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      Expires: 'Mon, 01 Jan 1990 00:00:00 GMT',
+      Expires: 'Sun, 06 Nov 1994 08:49:37 GMT',
       Pragma: 'no-cache',
       Vary: 'Origin',
       'Cache-control': 'no-cache',
@@ -165,13 +165,13 @@ const handler = async (event, context) => {
         clientReturn.tif |= 0x40 | 0x80;
         return await createReturn(clientReturn);
       }
-      logger.debug('Signature verified');
+      logger.debug({ client, clientReturn }, 'Signature verified');
 
       // Check IP if same ip check is requested
-      validNut = validNut && (!client.opt.includes('noiptest') || sameIp);
+      validNut = validNut && (sameIp || client.opt.includes('noiptest'));
 
       // look up user
-      logger.debug({ client, clientReturn }, 'Looking up SQRL data');
+      logger.debug({ validNut, client, clientReturn }, 'Looking up SQRL data');
       const sqrlData = await sqrlCrud.retrieve(client.idk);
       // Found current idk
       if (sqrlData) {
@@ -183,6 +183,7 @@ const handler = async (event, context) => {
           // user_id matches
           validNut =
             validNut && get(sqrlData, 'user_id') === existingNut.user_id;
+          logger.debug({ validNut }, 'Checked user_id for nut');
         }
         await nutCrud.markUser(clientReturn.nut, sqrlData.user_id);
         if (sqrlData.superseded) {
@@ -215,7 +216,7 @@ const handler = async (event, context) => {
         logger.info({ existingNut }, 'Invalid nut');
         // something wrong with input nut
         // Cannot process command
-        clientReturn.tif |= 0x40 | 0x20;
+        clientReturn.tif |= 0x40 | 0x80;
         return await createReturn(clientReturn);
       }
       logger.debug({ client, clientReturn }, 'Nut verified');

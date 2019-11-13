@@ -14,7 +14,6 @@ const nutCrud = {
         'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING user_id',
         [code, requestIp]
       );
-      logger.info({ code, result, requestIp }, 'DB result');
       return result;
     } catch (ex) {
       logger.error(ex);
@@ -51,6 +50,7 @@ const nutCrud = {
         code,
         requestIP
       ]);
+      logger.debug({ nut }, 'Generated follow up nut');
       return nut;
     } catch (ex) {
       logger.error(ex);

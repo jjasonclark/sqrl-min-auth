@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('path');
-const logger = require('pino')({ level: 'debug' });
+const logger = require('pino')({ level: 'info' });
 const fs = require('fs');
 const util = require('util');
 const readFile = util.promisify(fs.readFile);
