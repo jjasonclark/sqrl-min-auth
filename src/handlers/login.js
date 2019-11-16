@@ -46,7 +46,7 @@ const handler = async (event, context) => {
       <div>
         <a id="sqrlLogin">login</a>
       </div>
-      <div id="sqrlqr"></div>
+      <div id="sqrlqr" style="width:350px"></div>
       <script crossorigin src="https://unpkg.com/qrjs2@0.1.7/js/qrjs2.js"></script>
       <script crossorigin src="https://unpkg.com/unfetch/polyfill"></script>
       <script>
