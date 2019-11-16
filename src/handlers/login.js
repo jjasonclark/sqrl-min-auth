@@ -1,25 +1,18 @@
 'use strict';
 
-const url = require('url');
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
 const cookie = require('cookie');
-const apiBaseUrl = new url.URL(process.env.URL_BASE);
+const sqrlUrl = `${process.env.URL_BASE.replace('https', 'sqrl')}/sqrl`;
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');
   const cookies = get(event, 'headers.Cookie', '');
   const userCookies = get(cookie.parse(cookies), 'user');
   logger.debug({ cookies, userCookies }, 'Found cookies');
-  const fetchUrl = `https://${
-    event.requestContext.domainName
-  }${event.requestContext.path
-    .toString()
-    .substr(
-      0,
-      event.requestContext.path.length -
-        event.requestContext.resourcePath.length
-    )}/urls`;
+  const fetchUrl = `${process.env.URL_BASE}/urls`;
+  const logoutUrl = `${process.env.URL_BASE}/logout`;
+
   let body;
   if (userCookies) {
     body = `<!DOCTYPE html>
@@ -30,7 +23,7 @@ const handler = async (event, context) => {
     </head>
     <body>
       <div>You are user ${userCookies}</di>
-      <form action="${apiBaseUrl.pathname}/logout">
+      <form action="${logoutUrl}">
         <input type="submit" value="Logout" />
       </form>
     </body>
@@ -44,7 +37,7 @@ const handler = async (event, context) => {
     </head>
     <body>
       <div>
-        <a id="sqrlLogin">login</a>
+        <a id="sqrlLogin" href="${sqrlUrl}">login</a>
       </div>
       <div id="sqrlqr" style="width:350px"></div>
       <script crossorigin src="https://unpkg.com/qrjs2@0.1.7/js/qrjs2.js"></script>
