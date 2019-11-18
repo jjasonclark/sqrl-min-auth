@@ -6,7 +6,8 @@ const url = require('url');
 const base64url = require('universal-base64url');
 const get = require('dlv');
 const apiBaseUrl = new url.URL(process.env.URL_BASE);
-const { createInitialNut } = require('../lib/db/nut');
+const nutCrud = require('../lib/db/nut');
+const { createNut } = require('../lib/nut');
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');
@@ -15,7 +16,9 @@ const handler = async (event, context) => {
     const domain = apiBaseUrl.hostname;
     const x = apiBaseUrl.pathname.length;
     const path = `${apiBaseUrl.pathname}/sqrl`;
-    const urlReturn = { nut: await createInitialNut(requestIp) };
+    const nut = await createNut();
+    await nutCrud.create({ ip: requestIp, nut, code: nut });
+    const urlReturn = { nut };
     if (x > 0) {
       urlReturn.x = x;
     }

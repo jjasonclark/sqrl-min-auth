@@ -33,6 +33,7 @@ const sqrlCrud = {
       return null;
     }
   },
+
   async retrieve(idk) {
     const result = await db.oneOrNone(
       'SELECT user_id, suk, vuk, enabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk = $1',
@@ -43,16 +44,19 @@ const sqrlCrud = {
     }
     return {
       ...result,
+      idk,
       suk: result.suk ? result.suk.toString().trim() : null,
       vuk: result.vuk ? result.vuk.toString().trim() : null
     };
   },
-  async update(idk, { enabled, hardlock, sqrlonly }) {
+
+  async update(idk, { enabled, hardlock, sqrlonly, superseded = null }) {
     return await db.none(
-      'UPDATE sqrl set enabled=$1,hardlock=$2,sqrlonly=$3 WHERE idk = $4',
-      [enabled, hardlock, sqrlonly, idk]
+      'UPDATE sqrl set enabled=$1,hardlock=$2,sqrlonly=$3,superseded=$4 WHERE idk = $5',
+      [enabled, hardlock, sqrlonly, superseded, idk]
     );
   },
+
   async delete(idk) {
     const deletedSqrl = await db.none(
       'DELETE FROM sqrl WHERE idk = $1 returning user_id',
@@ -65,12 +69,6 @@ const sqrlCrud = {
     // Delete user
     await db.none('DELETE FROM users WHERE id = $1', [deletedSqrl.user_id]);
     logger.info({ userId: deletedSqrl.user_id }, 'Deleted user');
-  },
-  // mark old idk as superseded
-  async supersede(idk) {
-    await db.none('UPDATE sqrl SET superseded=NOW() WHERE idk = $1', [
-      client.pidk
-    ]);
   }
 };
 

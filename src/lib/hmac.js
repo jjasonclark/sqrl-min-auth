@@ -10,4 +10,6 @@ const signHmac = message => {
   return crypt.digest('base64');
 };
 
-module.exports = { signHmac };
+const previousMessageHmac = request => signHmac(get(request, 'server'));
+
+module.exports = { previousMessageHmac, signHmac };
