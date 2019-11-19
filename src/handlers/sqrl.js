@@ -108,6 +108,15 @@ const handler = async (event, context) => {
     if (
       // must have nut
       !existingNut ||
+      // Follow up nut's have same hmac
+      (existingNut.nut !== existingNut.code &&
+        previousMessageHmac(request) !== existingNut.hmac)
+    ) {
+      logger.debug({ client }, 'Nut invalid');
+      return await createErrorReturn({ ver: 1, tif: 0x20 }, requestIp);
+    }
+
+    if (
       // valid signature
       !verifySignature(request, client) ||
       // valid previous signature
@@ -118,9 +127,40 @@ const handler = async (event, context) => {
     }
     logger.debug({ client, existingNut }, 'Nut and signatures verified');
 
-    const clientReturn = { ver: 1, tif: 0 };
+    // Do same IP check for every request
+    // even if not requested to
+    // If success mark return as success
+    // Fail is covered when the nut is marked as invalid
+    const sameIp = existingNut.ip === requestIp;
+
+    if (
+      // Check IP if same ip check is requested
+      (!sameIp && client.opt.includes('noiptest')) ||
+      // Initial nuts are only allowed to query
+      (client.cmd !== 'query' && existingNut.nut === existingNut.code)
+    ) {
+      logger.debug({ client, existingNut }, 'Invalid nut via client actions');
+      return await createErrorReturn({ ver: 1, tif: 0x20 | 0x80 }, requestIp);
+    }
+
     // look up user
     const sqrlData = await sqrlCrud.retrieve(client.idk);
+
+    // Follow up nut with existing accounts have same user ids
+    if (
+      existingNut.nut !== existingNut.code &&
+      sqrlData &&
+      sqrlData.user_id !== existingNut.user_id
+    ) {
+      logger.debug({ client, existingNut }, 'Invalid nut via client actions');
+      return await createErrorReturn({ ver: 1, tif: 0x20 | 0x80 }, requestIp);
+    }
+
+    const clientReturn = { ver: 1, tif: 0 };
+    if (sameIp) {
+      clientReturn.tif |= 0x04;
+    }
+
     // Found current idk
     if (sqrlData) {
       logger.info(
@@ -143,31 +183,9 @@ const handler = async (event, context) => {
         await nutCrud.update(existingNut.nut, sqrlData.user_id);
         existingNut.user_id = sqrlData.user_id;
       }
-    } else {
-      logger.debug({ client }, 'Could not find sqrl data');
-    }
-
-    // Do same IP check for every request
-    // even if not requested to
-    // If success mark return as success
-    // Fail is covered when the nut is marked as invalid
-    const sameIp = existingNut.ip === requestIp;
-    if (sameIp) {
-      clientReturn.tif |= 0x04;
     }
 
     if (
-      // Check IP if same ip check is requested
-      (!sameIp && client.opt.includes('noiptest')) ||
-      // Follow up nut's have same hmac
-      (existingNut.nut !== existingNut.code &&
-        previousMessageHmac(request) !== existingNut.hmac) ||
-      // Initial nuts are only allowed to query
-      (client.cmd !== 'query' && existingNut.nut === existingNut.code) ||
-      // Follow up nut with existing accounts have same user ids
-      (existingNut.nut !== existingNut.code &&
-        sqrlData &&
-        sqrlData.user_id !== existingNut.user_id) ||
       // Superseded idks can only use the query command
       (client.cmd !== 'query' && sqrlData && sqrlData.superseded) ||
       // Pidks can only query and ident
@@ -182,23 +200,14 @@ const handler = async (event, context) => {
     logger.info({ client, clientReturn, sqrlData }, 'Processing command');
     switch (client.cmd) {
       case 'query':
-        if (sqrlData) {
-          if (sqrlData.enabled) {
-            logger.info(
-              { client, clientReturn, sqrlData },
-              'Found enabled idk'
-            );
-          } else {
-            // Add the suk value so user can enable account
-            clientReturn.suk = sqrlData.suk;
-            logger.info({ client, clientReturn }, 'Found disabled idk');
-          }
+        if (sqrlData && !sqrlData.enabled) {
+          // Add the suk value so user can enable account
+          clientReturn.suk = sqrlData.suk;
+          logger.info({ client, clientReturn }, 'Found disabled idk');
         }
         if (client.pidk) {
           const previousSqrl = await sqrlCrud.retrieve(client.pidk);
-          if (!previousSqrl) {
-            logger.info({ client, clientReturn }, 'Unknown pidk');
-          } else {
+          if (previousSqrl) {
             logger.info({ client, clientReturn, previousSqrl }, 'Found pidk');
             if (!existingNut.user_id) {
               await nutCrud.update(existingNut.nut, previousSqrl.user_id);
@@ -206,9 +215,6 @@ const handler = async (event, context) => {
             }
             clientReturn.tif |= 0x02;
             clientReturn.suk = sqrlData.suk;
-            if (previousSqrl.superseded) {
-              clientReturn.tif |= 0x200;
-            }
           }
         }
         break;
