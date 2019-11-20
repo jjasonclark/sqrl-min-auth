@@ -23,9 +23,9 @@ const nutCrud = {
 
   async useNut(nut) {
     try {
-      logger.info({ nut }, 'Finding unused nut');
+      logger.debug({ nut }, 'Finding unused nut');
       const result = await db.oneOrNone(
-        'UPDATE nuts SET used=NOW() WHERE used IS NULL AND nut = $1 RETURNING nut,code,ip,hmac,used,identified,issued,user_id',
+        'UPDATE nuts SET used=NOW() WHERE used IS NULL AND nut = $1 RETURNING nut,code,ip,hmac,created,used,identified,issued,user_id',
         [nut]
       );
       if (result) {
@@ -34,6 +34,7 @@ const nutCrud = {
           code: result.code.toString().trim(),
           ip: result.ip.toString().trim(),
           hmac: result.hmac ? result.hmac.toString().trim() : null,
+          created: Date.parse(result.created),
           used: result.used,
           identified: result.identified,
           issued: result.issued,

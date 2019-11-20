@@ -12,6 +12,7 @@ const { previousMessageHmac, signHmac } = require('../lib/hmac');
 const { decodeSQRLPack, encodeSQRLPack } = require('../lib/sqrl-pack');
 const { isValidSignature } = require('../lib/signature');
 
+const nutTimeout = 60 * 60 * 1000; // 1 hour in ms
 const apiBaseUrl = new url.URL(process.env.URL_BASE);
 const successUrl = `${process.env.URL_BASE}/authenticate`;
 
@@ -110,11 +111,14 @@ const handler = async (event, context) => {
       !existingNut ||
       // Follow up nut's have same hmac
       (existingNut.nut !== existingNut.code &&
-        previousMessageHmac(request) !== existingNut.hmac)
+        previousMessageHmac(request) !== existingNut.hmac) ||
+      // nut created within timeout
+      Date.now() - existingNut.created > nutTimeout
     ) {
-      logger.debug({ client }, 'Nut invalid');
+      logger.debug({ client, existingNut }, 'Nut invalid');
       return await createErrorReturn({ ver: 1, tif: 0x20 }, requestIp);
     }
+    logger.debug({ client, existingNut }, 'Nut verified');
 
     if (
       // valid signature
