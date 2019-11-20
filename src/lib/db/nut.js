@@ -5,17 +5,17 @@ const { db } = require('./db');
 
 // Crud for nuts table
 const nutCrud = {
-  async create({ nut, ip, code, user_id = null, hmac = null }) {
+  async create({ nut, ip, code, userId = null, hmac = null }) {
+    logger.debug({ nut, code, ip, userId, hmac }, 'Create nut called');
     try {
       // TODO: verify write
       await db.none(
         'INSERT INTO nuts (nut,code,ip,user_id,hmac) VALUES ($1,$2,$3,$4,$5)',
-        [nut, code, ip, user_id, hmac]
+        [nut, code, ip, userId, hmac]
       );
       logger.debug({ nut }, 'Created nut');
       return nut;
     } catch (ex) {
-      logger.info({ requestIP }, 'Create initial nut failed');
       logger.error(ex);
       return '';
     }
@@ -44,26 +44,25 @@ const nutCrud = {
       }
     } catch (ex) {
       logger.error(ex);
-      logger.info({ nut }, 'Failed to find nut');
     }
     return null;
   },
 
   async useCode(code, requestIp) {
+    logger.debug({ code, requestIp }, 'Finding unused code');
     try {
-      logger.info({ code, requestIp }, 'Finding unused code');
       return await db.oneOrNone(
         'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING user_id',
         [code, requestIp]
       );
     } catch (ex) {
       logger.error(ex);
-      logger.info({ code }, 'Failed to find code');
     }
     return null;
   },
 
   async update(nut, userId, identified = null) {
+    logger.debug({ nut, userId, identified }, 'NutCrud.update');
     try {
       await db.none('UPDATE nuts SET identified=$1,user_id=$2 WHERE nut = $3', [
         identified,

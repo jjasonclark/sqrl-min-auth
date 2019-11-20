@@ -1,6 +1,6 @@
 'use strict';
 
-const logger = require('pino')({ level: 'debug' });
+const logger = require('pino')({ level: 'info' });
 const crypto = require('crypto');
 const util = require('util');
 const base64url = require('universal-base64url');
@@ -11,23 +11,23 @@ const secrets = {
   iv: Buffer.from(nuts.iv, 'base64')
 };
 
-// let counter = 213;
 // const blowfishEncrypt = (message, { key, iv }) => {
 //   const cipher = crypto.createCipheriv('bf-cbc', key, iv);
-//   const encrypted = cipher.update(message.toString(), 'utf-8') + cipher.final();
-//   return base64url.encode(encrypted);
+//   const encrypted = cipher.update(message, 'utf-8') + cipher.final();
+//   return encrypted;
 // };
 
-const lotsOfRandom = async ({ key, iv }) => {
+const lotsOfRandom = async () => {
   const randomBuffer = Buffer.alloc(17);
   await randomFill(randomBuffer);
-  return base64url.encode(randomBuffer);
+  return randomBuffer;
 };
 
 const createNut = async () => {
   try {
-    // return blowfishEncrypt(++counter, secrets);
-    return await lotsOfRandom(secrets);
+    const counter = await lotsOfRandom();
+    // return base64url.encode(blowfishEncrypt(counter, secrets));
+    return base64url.encode(counter);
   } catch (ex) {
     logger.error(ex);
     return '';

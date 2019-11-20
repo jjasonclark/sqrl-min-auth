@@ -4,6 +4,7 @@ const url = require('url');
 const logger = require('pino')({ level: 'info' });
 const cookie = require('cookie');
 const apiBaseUrl = new url.URL(process.env.URL_BASE);
+const rootUrl = `${process.env.URL_BASE}/sqrl`;
 
 const handler = async (event, context) => {
   logger.info({ event, context }, 'Starting handler');
@@ -24,7 +25,7 @@ const handler = async (event, context) => {
         domain: apiBaseUrl.hostname,
         expires: new Date('Sun, 06 Nov 1994 08:49:37 GMT')
       }),
-      Location: `${apiBaseUrl}/sqrl`
+      Location: rootUrl
     },
     body: ''
   };

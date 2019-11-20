@@ -129,7 +129,7 @@ const handler = async (event, context) => {
       logger.debug({ client, existingNut }, 'Signature or nut invalid');
       return await createErrorReturn({ ver: 1, tif: 0x40 | 0x80 }, requestIp);
     }
-    logger.debug({ client, existingNut }, 'Nut and signatures verified');
+    logger.debug({ client, existingNut }, 'Signatures verified');
 
     // Do same IP check for every request
     // even if not requested to
@@ -149,6 +149,12 @@ const handler = async (event, context) => {
 
     // look up user
     const sqrlData = await sqrlCrud.retrieve(client.idk);
+    logger.debug({ sqrlData }, 'Sqrl data lookup');
+    if (sqrlData && !existingNut.user_id) {
+      // This should only happen on the initial nut
+      await nutCrud.update(existingNut.nut, sqrlData.user_id);
+      existingNut.user_id = sqrlData.user_id;
+    }
 
     // Follow up nut with existing accounts have same user ids
     if (
@@ -156,7 +162,10 @@ const handler = async (event, context) => {
       sqrlData &&
       sqrlData.user_id !== existingNut.user_id
     ) {
-      logger.debug({ client, existingNut }, 'Invalid nut via client actions');
+      logger.debug(
+        { client, existingNut },
+        'Invalid nut because different user id'
+      );
       return await createErrorReturn({ ver: 1, tif: 0x20 | 0x80 }, requestIp);
     }
 
@@ -181,11 +190,6 @@ const handler = async (event, context) => {
       // Did the client ask for suk values?
       if (client.opt.includes('suk')) {
         clientReturn.suk = sqrlData.suk;
-      }
-      if (!existingNut.user_id) {
-        // This should only happen on the initial nut
-        await nutCrud.update(existingNut.nut, sqrlData.user_id);
-        existingNut.user_id = sqrlData.user_id;
       }
     }
 

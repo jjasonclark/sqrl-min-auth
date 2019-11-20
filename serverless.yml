@@ -99,9 +99,9 @@ functions:
       - http:
           method: GET
           path: /authenticate
-  urls:
-    handler: src/handlers/urls.handler
-    description: JSON endpoint with fresh urls and nuts
+  login:
+    handler: src/handlers/login.handler
+    description: Minimal SQRL auth page
     memorySize: 128
     timeout: 30
     environment:
@@ -116,10 +116,10 @@ functions:
     events:
       - http:
           method: GET
-          path: /urls
-  login:
-    handler: src/handlers/login.handler
-    description: Minimal SQRL auth page
+          path: /sqrl
+  loggedin:
+    handler: src/handlers/loggedin.handler
+    description: Protected route
     memorySize: 128
     timeout: 30
     environment:
@@ -127,7 +127,7 @@ functions:
     events:
       - http:
           method: GET
-          path: /sqrl
+          path: /loggedin
   logout:
     handler: src/handlers/logout.handler
     description: Logout

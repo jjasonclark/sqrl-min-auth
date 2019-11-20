@@ -4,7 +4,7 @@
 const path = require('path');
 const fs = require('fs');
 const util = require('util');
-const logger = require('pino')({ level: 'debug' });
+const logger = require('pino')({ level: 'info' });
 const readFile = util.promisify(fs.readFile);
 const pgp = require('pg-promise')();
 // const { applySqlFile } = require('../src/lib/db');
