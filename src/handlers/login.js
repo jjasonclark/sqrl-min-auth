@@ -83,6 +83,7 @@ const handler = async (event, context) => {
     </head>
     <body>
       <div>
+        <a href="${urls.login}">login with SQRL://</a>
         <a id="sqrlLogin" href="${
           urls.login
         }" onclick="startCpsPolling()">login</a>

@@ -402,7 +402,8 @@ const handler = async (event, context) => {
     if (client.cmd !== 'query' && client.opt.includes('cps')) {
       logger.debug('Returning CPS return url');
       clientReturn.url = `${successUrl}?${querystring.encode({
-        code: existingNut.code
+        code: existingNut.code,
+        ac: 1
       })}`;
     }
 
