@@ -71,6 +71,15 @@ const handler = async (event, context) => {
     <head>
       <meta charset="utf-8" />
       <title>SQRL-Min-Auth</title>
+      <style>
+        a {
+          display: block;
+          margin: 10px;
+          background-color: lightsalmon;
+          border: 2px solid black;
+          width: 200px;
+        }
+      </style>
     </head>
     <body>
       <div>
