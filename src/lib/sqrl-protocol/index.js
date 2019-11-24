@@ -106,7 +106,7 @@ const createSQRLHandler = options => {
 
   const findAccount = async (idk, nut) => {
     const sqrlData = await opts.sqrlCrud.retrieve(idk);
-    opts.logger.debug({ sqrlData }, 'Sqrl data lookup');
+    opts.logger.debug({ idk, sqrlData }, 'Sqrl data lookup');
     if (sqrlData) {
       await claimNutOwner(sqrlData.user_id, nut);
     }
@@ -219,32 +219,27 @@ const createSQRLHandler = options => {
       // Fail is covered when the nut is marked as invalid
       const sameIp = existingNut.ip === requestIp;
 
+      // look up user
+      const sqrlData = await findAccount(client.idk, existingNut);
+      const previousSqrlData = client.pidk
+        ? await findAccount(client.pidk, existingNut)
+        : null;
+
       if (
         // Check IP if same ip check is requested
         (!sameIp && client.opt.includes('noiptest')) ||
         // Initial nuts are only allowed to query
-        (client.cmd !== 'query' && existingNut.nut === existingNut.code)
+        (client.cmd !== 'query' && existingNut.nut === existingNut.code) ||
+        // Follow up nut with existing accounts have same user ids
+        (existingNut.nut !== existingNut.code &&
+          sqrlData &&
+          sqrlData.user_id !== existingNut.user_id) ||
+        // idk and pidk must have same user
+        (sqrlData &&
+          previousSqrlData &&
+          sqrlData.user_id !== previousSqrlData.user_id)
       ) {
-        opts.logger.debug(
-          { client, existingNut },
-          'Invalid nut via client actions'
-        );
-        return await createErrorReturn({ ver: 1, tif: 0x20 | 0x80 }, requestIp);
-      }
-
-      // look up user
-      const sqrlData = await findAccount(client.idk, existingNut);
-
-      // Follow up nut with existing accounts have same user ids
-      if (
-        existingNut.nut !== existingNut.code &&
-        sqrlData &&
-        sqrlData.user_id !== existingNut.user_id
-      ) {
-        opts.logger.debug(
-          { client, existingNut },
-          'Invalid nut because different user id'
-        );
+        opts.logger.debug({ client, existingNut }, 'Transient nut failure');
         return await createErrorReturn({ ver: 1, tif: 0x20 | 0x80 }, requestIp);
       }
 
@@ -301,16 +296,9 @@ const createSQRLHandler = options => {
             clientReturn.suk = sqrlData.suk;
             opts.logger.info({ client, clientReturn }, 'Found disabled idk');
           }
-          if (client.pidk) {
-            const previousSqrl = await findAccount(client.pidk, existingNut);
-            if (previousSqrl) {
-              opts.logger.info(
-                { client, clientReturn, previousSqrl },
-                'Found pidk'
-              );
-              clientReturn.tif |= 0x02;
-              clientReturn.suk = sqrlData.suk;
-            }
+          if (previousSqrlData) {
+            clientReturn.tif |= 0x02;
+            clientReturn.suk = sqrlData.suk;
           }
           break;
         case 'ident':
@@ -329,50 +317,42 @@ const createSQRLHandler = options => {
                 'Ident failed on disabled account'
               );
             }
-          } else if (client.pidk) {
-            opts.logger.debug(
-              'Previous signature verified; Attempting superseded'
-            );
-            const previousSqrl = await findAccount(client.pidk, existingNut);
-            if (!previousSqrl) {
+          } else if (previousSqrlData) {
+            if (previousSqrlData.superseded) {
+              clientReturn.tif |= 0x200 | 0x40;
+              opts.logger.debug(
+                { client, clientReturn, previousSqrlData },
+                'Previous idk has been superseded'
+              );
+            } else if (!isValidUnlock(request, previousSqrlData)) {
               clientReturn.tif |= 0x40;
+              opts.logger.debug(
+                { client, clientReturn, previousSqrlData },
+                'Previous idk unlock signature failed'
+              );
             } else {
-              if (previousSqrl.superseded) {
-                clientReturn.tif |= 0x200 | 0x40;
+              opts.logger.info(
+                { client, previousSqrlData },
+                'Creating new idk from previous account'
+              );
+              const success = await createAccount(
+                previousSqrlData.user_id,
+                client,
+                existingNut
+              );
+              if (!success) {
                 opts.logger.debug(
-                  { client, clientReturn, previousSqrl },
-                  'Previous idk has been superseded'
+                  { client, request },
+                  'Could not create new idk'
                 );
-              } else if (!isValidUnlock(request, previousSqrl)) {
                 clientReturn.tif |= 0x40;
-                opts.logger.debug(
-                  { client, clientReturn, previousSqrl },
-                  'Previous idk unlock signature failed'
-                );
               } else {
-                opts.logger.info(
-                  { client, previousSqrl },
-                  'Creating new idk from previous account'
-                );
-                const success = await createAccount(
-                  previousSqrl.user_id,
-                  client,
-                  existingNut
-                );
-                if (!success) {
-                  opts.logger.debug(
-                    { client, request },
-                    'Could not create new idk'
-                  );
-                  clientReturn.tif |= 0x40;
-                } else {
-                  // mark old idk as disabled and superseded
-                  await supersedAccount(client);
-                  // Flag this is new idk
-                  clientReturn.tif |= 0x01;
-                  // Log in an account
-                  await sqrlLogin(previousSqrl, existingNut);
-                }
+                // mark old idk as disabled and superseded
+                await supersedAccount(client);
+                // Flag this is new idk
+                clientReturn.tif |= 0x01;
+                // Log in an account
+                await sqrlLogin(previousSqrlData, existingNut);
               }
             }
           } else {
