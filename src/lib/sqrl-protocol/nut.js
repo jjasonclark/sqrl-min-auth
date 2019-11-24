@@ -5,11 +5,11 @@ const crypto = require('crypto');
 const util = require('util');
 const base64url = require('universal-base64url');
 const randomFill = util.promisify(crypto.randomFill);
-const { nuts } = require('../../secrets.json');
-const secrets = {
-  key: Buffer.from(nuts.key, 'base64'),
-  iv: Buffer.from(nuts.iv, 'base64')
-};
+// const { nuts } = require('../../../secrets.json');
+// const secrets = {
+//   key: Buffer.from(nuts.key, 'base64'),
+//   iv: Buffer.from(nuts.iv, 'base64')
+// };
 
 // const blowfishEncrypt = (message, { key, iv }) => {
 //   const cipher = crypto.createCipheriv('bf-cbc', key, iv);

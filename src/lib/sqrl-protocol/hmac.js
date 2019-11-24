@@ -2,7 +2,7 @@
 
 const get = require('dlv');
 const { createHmac } = require('crypto');
-const secrets = require('../../secrets.json');
+const secrets = require('../../../secrets.json');
 
 const signHmac = message => {
   const crypt = createHmac('sha256', get(secrets, 'nuts.hmac'));

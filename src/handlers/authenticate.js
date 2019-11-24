@@ -3,9 +3,9 @@
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
 const { getUserCookie, createUserCookie } = require('../lib/cookie');
-const { useCode } = require('../lib/db/nut');
-const baseURL = process.env.URL_BASE;
-const successUrl = `${baseURL}/loggedin`;
+const baseUrl = process.env.URL_BASE;
+const successUrl = `${baseUrl}/loggedin`;
+const sqrlHandler = require('../lib/sqrl');
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');
@@ -37,7 +37,7 @@ const handler = async (event, context) => {
     }
   }
 
-  const foundNut = await useCode(codeParam, requestIp);
+  const foundNut = await sqrlHandler.useCode(codeParam, requestIp);
   if (foundNut) {
     logger.info({ foundNut, codeParam }, 'Found unused code');
     const returnValue = {
@@ -49,7 +49,7 @@ const handler = async (event, context) => {
         Vary: 'Origin',
         'Cache-control': 'no-cache',
         'Content-Length': '0',
-        'Set-Cookie': createUserCookie(foundNut.user_id, baseURL),
+        'Set-Cookie': createUserCookie(foundNut.user_id, baseUrl),
         Location: successUrl
       },
       body: ''

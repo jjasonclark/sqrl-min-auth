@@ -1,42 +1,11 @@
 'use strict';
 
-const url = require('url');
-const querystring = require('querystring');
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
-const base64url = require('universal-base64url');
 const { getUserCookie } = require('../lib/cookie');
-const nutCrud = require('../lib/db/nut');
-const { createNut } = require('../lib/nut');
+const sqrlHandler = require('../lib/sqrl');
 
 const successUrl = `${process.env.URL_BASE}/loggedin`;
-
-const createUrls = async (baseUrl, requestIp) => {
-  logger.debug({ baseUrl, requestIp }, 'Create urls');
-  const apiBaseUrl = new url.URL(baseUrl);
-  const domain = apiBaseUrl.hostname;
-  const x = apiBaseUrl.pathname.length;
-  const path = `${apiBaseUrl.pathname}/sqrl`;
-  const nut = await createNut();
-  logger.debug({ nut }, 'Created nut');
-  const savedNut = await nutCrud.create({ ip: requestIp, nut, code: nut });
-  logger.debug({ nut, savedNut }, 'Saved nut');
-  const urlReturn = { nut };
-  if (x > 0) {
-    urlReturn.x = x;
-  }
-  return {
-    cps: `http://localhost:25519/${base64url.encode(
-      `sqrl://${domain}${path}?${querystring.encode({
-        ...urlReturn,
-        can: base64url.encode(path)
-      })}`
-    )}`,
-    login: `sqrl://${domain}${path}?${querystring.encode(urlReturn)}`,
-    poll: `${process.env.URL_BASE}/authenticate?code=${urlReturn.nut}`,
-    success: successUrl
-  };
-};
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');
@@ -60,8 +29,7 @@ const handler = async (event, context) => {
     logger.info({ errorReturn }, 'Error return value');
     return errorReturn;
   }
-  const urls = await createUrls(
-    process.env.URL_BASE,
+  const urls = await sqrlHandler.createUrls(
     get(event, 'requestContext.identity.sourceIp')
   );
   logger.debug({ urls }, 'Created urls');
