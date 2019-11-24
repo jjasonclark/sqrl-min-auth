@@ -1,14 +1,11 @@
 'use strict';
 
-const url = require('url');
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
-const cookie = require('cookie');
+const { getUserCookie, createUserCookie } = require('../lib/cookie');
 const { useCode } = require('../lib/db/nut');
-const successUrl = `${process.env.URL_BASE}/loggedin`;
-const apiBaseUrl = new url.URL(process.env.URL_BASE);
-const cookieTimeout = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks
-const domainName = apiBaseUrl.hostname;
+const baseURL = process.env.URL_BASE;
+const successUrl = `${baseURL}/loggedin`;
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');
@@ -19,10 +16,9 @@ const handler = async (event, context) => {
   logger.info({ codeParam, requestIp }, 'Searching for code');
 
   if (allowCookie) {
-    const cookies = get(event, 'headers.Cookie', '');
-    const userCookie = get(cookie.parse(cookies), 'user');
-    logger.debug({ cookies, userCookie }, 'Found cookies');
+    const userCookie = getUserCookie(get(event, 'headers.Cookie'));
     if (userCookie) {
+      logger.debug({ userCookie }, 'Existing user');
       const errorReturn = {
         statusCode: 302,
         headers: {
@@ -53,14 +49,7 @@ const handler = async (event, context) => {
         Vary: 'Origin',
         'Cache-control': 'no-cache',
         'Content-Length': '0',
-        'Set-Cookie': cookie.serialize('user', foundNut.user_id, {
-          secure: true,
-          httpOnly: true,
-          sameSite: 'strict',
-          path: apiBaseUrl.pathname,
-          domain: domainName,
-          expires: new Date(Date.now() + cookieTimeout)
-        }),
+        'Set-Cookie': createUserCookie(foundNut.user_id, baseURL),
         Location: successUrl
       },
       body: ''

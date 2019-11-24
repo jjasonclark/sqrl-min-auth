@@ -314,7 +314,7 @@ const handler = async (event, context) => {
             clientReturn.tif |= 0x01;
             if (!existingNut.user_id) {
               await nutCrud.update(existingNut.nut, userId);
-              existingNut.user_id = user_id;
+              existingNut.user_id = userId;
             }
             await nutCrud.update(
               existingNut.code,

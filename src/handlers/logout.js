@@ -1,9 +1,7 @@
 'use strict';
 
-const url = require('url');
 const logger = require('pino')({ level: 'info' });
-const cookie = require('cookie');
-const apiBaseUrl = new url.URL(process.env.URL_BASE);
+const { clearUserCookie } = require('../lib/cookie');
 const rootUrl = `${process.env.URL_BASE}/sqrl`;
 
 const handler = async (event, context) => {
@@ -17,14 +15,7 @@ const handler = async (event, context) => {
       Vary: 'Origin',
       'Cache-control': 'no-cache',
       'Content-Length': '0',
-      'Set-Cookie': cookie.serialize('user', '', {
-        secure: true,
-        httpOnly: true,
-        sameSite: 'strict',
-        path: apiBaseUrl.pathname,
-        domain: apiBaseUrl.hostname,
-        expires: new Date('Sun, 06 Nov 1994 08:49:37 GMT')
-      }),
+      'Set-Cookie': clearUserCookie(process.env.URL_BASE),
       Location: rootUrl
     },
     body: ''

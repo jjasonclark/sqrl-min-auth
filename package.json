@@ -2,6 +2,9 @@
   "name": "sqrl-min-auth",
   "version": "0.5.0",
   "description": "",
+  "engines": {
+    "node": "12"
+  },
   "main": "src/index.js",
   "scripts": {
     "db:migrate": "sls invoke -f dbMigrate --stage dev",
@@ -16,6 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "cookie": "^0.4.0",
+    "cookie-signature": "^1.1.0",
     "dlv": "^1.1.3",
     "pg": "^7.12.1",
     "pg-promise": "^9.3.3",

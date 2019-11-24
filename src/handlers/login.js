@@ -4,8 +4,8 @@ const url = require('url');
 const querystring = require('querystring');
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
-const cookie = require('cookie');
 const base64url = require('universal-base64url');
+const { getUserCookie } = require('../lib/cookie');
 const nutCrud = require('../lib/db/nut');
 const { createNut } = require('../lib/nut');
 
@@ -40,9 +40,8 @@ const createUrls = async (baseUrl, requestIp) => {
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');
-  const cookies = get(event, 'headers.Cookie', '');
-  const userCookie = get(cookie.parse(cookies), 'user', false);
-  logger.debug({ cookies, userCookie }, 'Cookies');
+  const userCookie = getUserCookie(get(event, 'headers.Cookie'));
+  logger.debug({ userCookie }, 'Cookies');
 
   if (userCookie) {
     const errorReturn = {
