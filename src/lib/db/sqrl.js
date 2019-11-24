@@ -58,7 +58,7 @@ const sqrlCrud = {
   },
 
   async delete(idk) {
-    const deletedSqrl = await db.none(
+    const deletedSqrl = await db.oneOrNone(
       'DELETE FROM sqrl WHERE idk = $1 returning user_id',
       [idk]
     );

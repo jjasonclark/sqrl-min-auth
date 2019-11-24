@@ -17,8 +17,8 @@ const nutCrud = {
       return nut;
     } catch (ex) {
       logger.error(ex);
-      return '';
     }
+    return '';
   },
 
   async useNut(nut) {
@@ -72,8 +72,8 @@ const nutCrud = {
       return true;
     } catch (ex) {
       logger.error(ex);
-      return false;
     }
+    return false;
   }
 };
 
