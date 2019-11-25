@@ -33,6 +33,7 @@ const nullLogger = () => ({
 
 const defaultOptions = apiBaseUrl => ({
   logger: nullLogger(),
+  codeGraceTimeout: 2 * 60 * 1000, // 2 minutes in ms
   nutTimeout: 60 * 60 * 1000, // 1 hour in ms
   // used for qry return value
   sqrlUrl: '/sqrl',
@@ -86,6 +87,24 @@ const createSQRLHandler = options => {
       await opts.nutCrud.update(existingNut.nut, userId);
       existingNut.user_id = userId;
     }
+  };
+
+  const useCode = async (code, ip) => {
+    const usedCode = await opts.nutCrud.useCode(code, ip);
+    if (usedCode) {
+      return usedCode;
+    }
+    // Allow a grace period
+    if (opts.codeGraceTimeout && opts.codeGraceTimeout > 0) {
+      const issuedCode = opts.nutCrud.findIssuedCode(code, ip);
+      if (
+        issuedCode &&
+        Date.now() - issuedCode.issued <= opts.codeGraceTimeout
+      ) {
+        return issuedCode;
+      }
+    }
+    return null;
   };
 
   const createAccount = async (userId, client, nut) => {
@@ -414,8 +433,7 @@ const createSQRLHandler = options => {
       if (client.cmd !== 'query' && client.opt.includes('cps')) {
         opts.logger.debug('Returning CPS return url');
         clientReturn.url = `${opts.authUrl}?${querystring.encode({
-          code: existingNut.code,
-          ac: 1
+          code: existingNut.code
         })}`;
       }
 
@@ -449,7 +467,7 @@ const createSQRLHandler = options => {
     };
   };
 
-  return { handler, useCode: opts.nutCrud.useCode, createUrls };
+  return { handler, useCode, createUrls };
 };
 
 module.exports = { createSQRLHandler };

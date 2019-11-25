@@ -23,8 +23,8 @@ const mapFromDb = result => {
 // Crud for nuts table
 const nutCrud = {
   async create({ nut, ip, code, userId = null, hmac = null }) {
-    logger.debug({ nut, code, ip, userId, hmac }, 'Create nut called');
     try {
+      logger.debug({ nut, code, ip, userId, hmac }, 'Create nut called');
       // TODO: verify write
       const result = await db.oneOrNone(
         'INSERT INTO nuts (nut,code,ip,user_id,hmac) VALUES ($1,$2,$3,$4,$5) RETURNING nut,code,ip,hmac,created,used,identified,issued,user_id',
@@ -36,6 +36,20 @@ const nutCrud = {
       logger.error(ex);
     }
     return '';
+  },
+
+  async findIssuedCode(code, requestIp) {
+    try {
+      logger.debug({ code, requestIp }, 'Finding issued code');
+      const result = await db.oneOrNone(
+        'SELECT nut,code,ip,hmac,created,used,identified,issued,user_id FROM nuts WHERE issued IS NOT NULL AND nut = $1 AND ip = $2',
+        [code, requestIp]
+      );
+      return mapFromDb(result);
+    } catch (ex) {
+      logger.error(ex);
+    }
+    return null;
   },
 
   async useNut(nut) {
@@ -53,10 +67,10 @@ const nutCrud = {
   },
 
   async useCode(code, requestIp) {
-    logger.debug({ code, requestIp }, 'Finding unused code');
     try {
+      logger.debug({ code, requestIp }, 'Finding unused code');
       const result = await db.oneOrNone(
-        'UPDATE nuts SET issued=NOW() WHERE identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING nut,code,ip,hmac,created,used,identified,issued,user_id',
+        'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = $1 AND ip = $2 RETURNING nut,code,ip,hmac,created,used,identified,issued,user_id',
         [code, requestIp]
       );
       return mapFromDb(result);
@@ -67,7 +81,7 @@ const nutCrud = {
   },
 
   async update(nut, userId, identified = null) {
-    logger.debug({ nut, userId, identified }, 'NutCrud.update');
+    logger.debug({ nut, userId, identified }, 'nutCrud.update');
     try {
       await db.none('UPDATE nuts SET identified=$1,user_id=$2 WHERE nut = $3', [
         identified,
