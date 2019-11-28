@@ -86,12 +86,12 @@ const createSQRLHandler = options => {
   // Log in an account
   const sqrlLogin = async (sqrl, nut) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
-    await opts.nutCrud.update(nut.code, sqrl.user_id, new Date().toISOString());
+    await opts.nutCrud.allowLogin(nut.initial, sqrl.user_id);
   };
 
   const claimNutOwner = async (userId, existingNut) => {
     if (userId && existingNut && !existingNut.user_id) {
-      await opts.nutCrud.update(existingNut.nut, userId);
+      await opts.nutCrud.claim(existingNut.nut, userId);
       existingNut.user_id = userId;
     }
   };
@@ -184,7 +184,13 @@ const createSQRLHandler = options => {
       nut
     })}`;
     const body = convertToBody(clientReturn);
-    await opts.nutCrud.create({ ...existingNut, nut, hmac: signHmac(body) });
+    await opts.nutCrud.create({
+      nut,
+      ip: existingNut.ip,
+      initial: existingNut.initial || existingNut.id,
+      user_ip: existingNut.user_ip,
+      hmac: signHmac(body)
+    });
     opts.logger.info({ clientReturn }, 'Follow up return value');
     return body;
   };
@@ -192,7 +198,7 @@ const createSQRLHandler = options => {
   const createErrorReturn = async (clientReturn, ip) => {
     // TODO: don't mutate clientReturn
     const nut = await createNut();
-    await opts.nutCrud.create({ nut, code: nut, ip });
+    await opts.nutCrud.create({ nut, ip });
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({
       nut
@@ -457,7 +463,7 @@ const createSQRLHandler = options => {
     opts.logger.debug({ ip }, 'Create urls');
     const nut = await createNut();
     opts.logger.debug({ nut }, 'Created nut');
-    const savedNut = await opts.nutCrud.create({ ip, nut, code: nut });
+    const savedNut = await opts.nutCrud.create({ ip, nut, initial: null });
     opts.logger.debug({ nut, savedNut }, 'Saved nut');
     const urlReturn = { nut };
     if (opts.x > 0) {
