@@ -48,6 +48,19 @@ const applyDefaults = (dest, defaults) => {
   return dest;
 };
 
+const reorder = (objects, names, prop = 'idk') => {
+  const output = new Array(names.length);
+  let i = 0;
+  const lookup = names.reduce((memo, name) => ({ ...memo, [name]: i++ }), {});
+  for (const obj of objects) {
+    const spot = get(lookup, get(obj, prop));
+    if (spot) {
+      output[spot] = obj;
+    }
+  }
+  return output;
+};
+
 const createSQRLHandler = options => {
   const apiBaseUrl = new url.URL(options.baseUrl);
   const path = `${apiBaseUrl.pathname}/sqrl`;
@@ -77,7 +90,7 @@ const createSQRLHandler = options => {
   };
 
   const claimNutOwner = async (userId, existingNut) => {
-    if (!existingNut.user_id) {
+    if (userId && existingNut && !existingNut.user_id) {
       await opts.nutCrud.update(existingNut.nut, userId);
       existingNut.user_id = userId;
     }
@@ -117,17 +130,16 @@ const createSQRLHandler = options => {
     return null;
   };
 
-  const findAccount = async (idk, nut) => {
-    const sqrlData = await opts.sqrlCrud.retrieve([idk]);
+  const findAccounts = async (idks, nut) => {
+    const sqrlData = await opts.sqrlCrud.retrieve(idks);
     opts.logger.debug({ idk, sqrlData }, 'Sqrl data lookup');
     if (sqrlData) {
       const userIds = sqrlData.map(i => i.user_id).filter(Boolean);
       const user_id = userIds.length ? userIds[0] : null;
-      if (user_id) {
-        await claimNutOwner(user_id, nut);
-      }
+      await claimNutOwner(user_id, nut);
+      return reorder(sqrlData, idks);
     }
-    return sqrlData || [];
+    return [];
   };
 
   const enableAccount = async (sqrlData, client) => {
@@ -233,9 +245,10 @@ const createSQRLHandler = options => {
       const sameIp = existingNut.ip === requestIp;
 
       // look up user
-      const sqrls = findAccount([client.idk, client.pidk], existingNut);
-      const sqrlData = sqrls.find(i => i.idk === client.idk);
-      const previousSqrlData = sqrls.find(i => i.idk === client.pidk);
+      const [sqrlData, previousSqrlData] = findAccounts(
+        [client.idk, client.pidk],
+        existingNut
+      );
 
       if (
         // Check IP if same ip check is requested
@@ -310,7 +323,9 @@ const createSQRLHandler = options => {
           }
           if (previousSqrlData) {
             clientReturn.tif |= 0x02;
-            clientReturn.suk = previousSqrlData.suk;
+            if (!sqrlData) {
+              clientReturn.suk = previousSqrlData.suk;
+            }
           }
           break;
         case 'ident':
