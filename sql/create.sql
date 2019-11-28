@@ -25,3 +25,12 @@ CREATE TABLE IF NOT EXISTS nuts(
   issued TIMESTAMP,
   user_id INT REFERENCES users(id)
 );
+
+ALTER TABLE sqrl
+  ADD created TIMESTAMP DEFAULT NOW(),
+  ADD disabled TIMESTAMP;
+
+UPDATE sqrl SET created=NOW() WHERE created IS NULL;
+UPDATE sqrl SET disabled=NOW() WHERE enabled=FALSE;
+
+ALTER TABLE sqrl DROP enabled;
