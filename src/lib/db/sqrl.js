@@ -3,6 +3,17 @@
 const logger = require('pino')({ level: 'info' });
 const { db } = require('./db');
 
+const cleanString = value => {
+  if (!value) {
+    return null;
+  }
+  const formatted = value.toString().trim();
+  if (!formatted || formatted === '') {
+    return null;
+  }
+  return formatted;
+};
+
 // Crud for sqrl table
 const sqrlCrud = {
   async create(it) {
@@ -20,20 +31,20 @@ const sqrlCrud = {
     return null;
   },
 
-  async retrieve(idk) {
-    const result = await db.oneOrNone(
-      'SELECT user_id, suk, vuk, disabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk = $1',
-      [idk]
+  async retrieve(idks) {
+    const results = await db.manyOrNone(
+      'SELECT idk, user_id, suk, vuk, disabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk IN $1',
+      [idks]
     );
-    if (!result) {
+    if (!results || results.length <= 0) {
       return null;
     }
-    return {
+    return results.map(result => ({
       ...result,
-      idk,
-      suk: result.suk ? result.suk.toString().trim() : null,
-      vuk: result.vuk ? result.vuk.toString().trim() : null
-    };
+      idk: cleanString(result.idk),
+      suk: cleanString(result.suk),
+      vuk: cleanString(result.vuk)
+    }));
   },
 
   async update({ idk, disabled, hardlock, sqrlonly, superseded = null }) {

@@ -124,12 +124,16 @@ const createSQRLHandler = options => {
   };
 
   const findAccount = async (idk, nut) => {
-    const sqrlData = await opts.sqrlCrud.retrieve(idk);
+    const sqrlData = await opts.sqrlCrud.retrieve([idk]);
     opts.logger.debug({ idk, sqrlData }, 'Sqrl data lookup');
     if (sqrlData) {
-      await claimNutOwner(sqrlData.user_id, nut);
+      const userIds = sqrlData.map(i => i.user_id).filter(Boolean);
+      const user_id = userIds.length ? userIds[0] : null;
+      if (user_id) {
+        await claimNutOwner(user_id, nut);
+      }
     }
-    return sqrlData;
+    return sqrlData || [];
   };
 
   const enableAccount = async (sqrlData, client) => {
@@ -235,10 +239,9 @@ const createSQRLHandler = options => {
       const sameIp = existingNut.ip === requestIp;
 
       // look up user
-      const sqrlData = await findAccount(client.idk, existingNut);
-      const previousSqrlData = client.pidk
-        ? await findAccount(client.pidk, existingNut)
-        : null;
+      const sqrls = findAccount([client.idk, client.pidk], existingNut);
+      const sqrlData = sqrls.find(i => i.idk === client.idk);
+      const previousSqrlData = sqrls.find(i => i.idk === client.pidk);
 
       if (
         // Check IP if same ip check is requested
