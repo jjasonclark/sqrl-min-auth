@@ -4,13 +4,14 @@ CREATE TABLE IF NOT EXISTS users(
 
 CREATE TABLE IF NOT EXISTS sqrl(
   idk CHAR(44) PRIMARY KEY,
-  user_id INT NOT NULL REFERENCES users(id),
   suk CHAR(44),
   vuk CHAR(44),
-  enabled BOOLEAN DEFAULT TRUE,
   hardlock BOOLEAN DEFAULT FALSE,
   sqrlonly BOOLEAN DEFAULT FALSE,
-  superseded TIMESTAMP
+  created TIMESTAMP DEFAULT NOW(),
+  disabled TIMESTAMP,
+  superseded TIMESTAMP,
+  user_id INT NOT NULL REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS nuts(
@@ -21,6 +22,6 @@ CREATE TABLE IF NOT EXISTS nuts(
   created TIMESTAMP DEFAULT NOW(),
   used TIMESTAMP,
   identified TIMESTAMP,
-  user_id INT REFERENCES users(id),
-  issued TIMESTAMP
+  issued TIMESTAMP,
+  user_id INT REFERENCES users(id)
 );

@@ -133,33 +133,29 @@ const createSQRLHandler = options => {
   };
 
   const enableAccount = async (sqrlData, client) => {
+    opts.logger.info({ sqrlData, client }, 'Enabling sqrl');
+    sqrlData.disabled = null;
+    sqrlData.hardlock = client.opt.includes('hardlock');
+    sqrlData.sqrlonly = client.opt.includes('sqrlonly');
     // Set flags to current choices
-    await opts.sqrlCrud.update(sqrlData.idk, {
-      // enable login
-      enabled: true,
-      hardlock: client.opt.includes('hardlock'),
-      sqrlonly: client.opt.includes('sqrlonly')
-    });
+    await opts.sqrlCrud.update(sqrlData);
   };
 
   const disableAccount = async (sqrlData, client) => {
-    opts.logger.info({ sqrlData }, 'Disabling sqrl');
-    await opts.sqrlCrud.update(sqrlData.idk, {
-      enabled: false,
-      hardlock: client.opt.includes('hardlock'),
-      sqrlonly: client.opt.includes('sqrlonly')
-    });
+    opts.logger.info({ sqrlData, client }, 'Disabling sqrl');
+    sqrlData.disabled = new Date().toISOString();
+    sqrlData.hardlock = client.opt.includes('hardlock');
+    sqrlData.sqrlonly = client.opt.includes('sqrlonly');
+    await opts.sqrlCrud.update(sqrlData);
   };
 
-  const supersedAccount = async client => {
-    opts.logger.info({ client }, 'Superseding sqrl pidk');
+  const supersedAccount = async (sqrlData, client) => {
+    opts.logger.info({ sqrlData, client }, 'Superseding sqrl');
+    const updateTime = new Date().toISOString();
+    sqrlData.disabled = sqrlData.disabled || updateTime;
+    sqrlData.superseded = updateTime;
     // mark old idk as disabled and superseded
-    await opts.sqrlCrud.update(client.pidk, {
-      enabled: false,
-      superseded: new Date().toISOString(),
-      hardlock: client.opt.includes('hardlock'),
-      sqrlonly: client.opt.includes('sqrlonly')
-    });
+    await opts.sqrlCrud.update(sqrlData);
   };
 
   const removeAccount = async sqrlData => {
@@ -274,7 +270,7 @@ const createSQRLHandler = options => {
           'Found existing sqrl data'
         );
         clientReturn.tif |= 0x01;
-        if (!sqrlData.enabled) {
+        if (sqrlData.disabled) {
           clientReturn.tif |= 0x08;
         }
         if (sqrlData.superseded) {
@@ -310,19 +306,19 @@ const createSQRLHandler = options => {
       );
       switch (client.cmd) {
         case 'query':
-          if (sqrlData && !sqrlData.enabled) {
+          if (sqrlData && sqrlData.disabled) {
             // Add the suk value so user can enable account
             clientReturn.suk = sqrlData.suk;
             opts.logger.info({ client, clientReturn }, 'Found disabled idk');
           }
           if (previousSqrlData) {
             clientReturn.tif |= 0x02;
-            clientReturn.suk = sqrlData.suk;
+            clientReturn.suk = previousSqrlData.suk;
           }
           break;
         case 'ident':
           if (sqrlData) {
-            if (sqrlData.enabled) {
+            if (!sqrlData.disabled) {
               await enableAccount(sqrlData, client);
               // Log in an account
               await sqrlLogin(sqrlData, existingNut);
@@ -367,7 +363,7 @@ const createSQRLHandler = options => {
                 clientReturn.tif |= 0x40;
               } else {
                 // mark old idk as disabled and superseded
-                await supersedAccount(client);
+                await supersedAccount(previousSqrlData, client);
                 // Flag this is new idk
                 clientReturn.tif |= 0x01;
                 // Log in an account

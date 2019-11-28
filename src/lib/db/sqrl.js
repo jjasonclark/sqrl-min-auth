@@ -22,7 +22,7 @@ const sqrlCrud = {
 
   async retrieve(idk) {
     const result = await db.oneOrNone(
-      'SELECT user_id, suk, vuk, enabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk = $1',
+      'SELECT user_id, suk, vuk, disabled, hardlock, sqrlonly, superseded FROM sqrl WHERE idk = $1',
       [idk]
     );
     if (!result) {
@@ -36,10 +36,10 @@ const sqrlCrud = {
     };
   },
 
-  async update(idk, { enabled, hardlock, sqrlonly, superseded = null }) {
+  async update({ idk, disabled, hardlock, sqrlonly, superseded = null }) {
     return await db.none(
-      'UPDATE sqrl set enabled=$1,hardlock=$2,sqrlonly=$3,superseded=$4 WHERE idk = $5',
-      [enabled, hardlock, sqrlonly, superseded, idk]
+      'UPDATE sqrl set disabled=$1,hardlock=$2,sqrlonly=$3,superseded=$4 WHERE idk = $5',
+      [disabled, hardlock, sqrlonly, superseded, idk]
     );
   },
 
