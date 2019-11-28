@@ -8,6 +8,7 @@ const { createNut } = require('./nut');
 const { previousMessageHmac, signHmac } = require('./hmac');
 const { decodeSQRLPack, encodeSQRLPack } = require('./sqrl-pack');
 const { isValidSignature } = require('./signature');
+const { nullLogger } = require('./null-logger');
 
 const verifySignature = (request, { idk }) =>
   isValidSignature(request, request.ids, idk);
@@ -23,13 +24,6 @@ const convertToBody = clientReturn => {
   const rawReturn = encodeSQRLPack(clientReturn);
   return base64url.encode(rawReturn);
 };
-
-const nullLogger = () => ({
-  info() {},
-  warn() {},
-  error() {},
-  debug() {}
-});
 
 const defaultOptions = apiBaseUrl => ({
   logger: nullLogger(),
