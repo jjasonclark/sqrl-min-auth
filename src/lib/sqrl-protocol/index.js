@@ -48,19 +48,6 @@ const applyDefaults = (dest, defaults) => {
   return dest;
 };
 
-const reorder = (objects, names, prop = 'idk') => {
-  const output = new Array(names.length);
-  let i = 0;
-  const lookup = names.reduce((memo, name) => ({ ...memo, [name]: i++ }), {});
-  for (const obj of objects) {
-    const spot = get(lookup, get(obj, prop));
-    if (spot) {
-      output[spot] = obj;
-    }
-  }
-  return output;
-};
-
 const createSQRLHandler = options => {
   const apiBaseUrl = new url.URL(options.baseUrl);
   const path = `${apiBaseUrl.pathname}/sqrl`;
@@ -86,24 +73,41 @@ const createSQRLHandler = options => {
   // Log in an account
   const sqrlLogin = async (sqrl, nut) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
-    await opts.nutCrud.allowLogin(nut.initial, sqrl.user_id);
+    return await opts.nutCrud.allowLogin(
+      nut.initial,
+      sqrl.user_id,
+      new Date().toISOString()
+    );
   };
 
-  const claimNutOwner = async (userId, existingNut) => {
-    if (userId && existingNut && !existingNut.user_id) {
-      await opts.nutCrud.claim(existingNut.nut, userId);
-      existingNut.user_id = userId;
+  // Log in an account
+  const setCpsUrl = (initialNut, client, clientReturn) => {
+    opts.logger.info({ initialNut, client, clientReturn }, 'Logging in user');
+    // All commands except query get url when CPS is requested
+    if (initialNut && client.opt.includes('cps')) {
+      opts.logger.debug('Returning CPS return url');
+      clientReturn.url = `${opts.authUrl}?${querystring.encode({
+        code: initialNut.nut
+      })}`;
+    }
+  };
+
+  const claimNutOwner = async (userId, nut) => {
+    if (userId && nut && !nut.user_id) {
+      opts.logger.info({ userId, nut }, 'Claiming nut');
+      await opts.nutCrud.claim(nut.nut, userId);
+      nut.user_id = userId;
     }
   };
 
   const useCode = async (code, ip) => {
-    const usedCode = await opts.nutCrud.useCode(code, ip);
+    const usedCode = await opts.nutCrud.issueNut(code, ip);
     if (usedCode) {
       return usedCode;
     }
     // Allow a grace period
     if (opts.codeGraceTimeout && opts.codeGraceTimeout > 0) {
-      const issuedCode = opts.nutCrud.findIssuedCode(code, ip);
+      const issuedCode = opts.nutCrud.findIssuedNut(code, ip);
       if (
         issuedCode &&
         Date.now() - issuedCode.issued <= opts.codeGraceTimeout
@@ -121,23 +125,27 @@ const createSQRLHandler = options => {
       vuk: client.vuk,
       user_id: userId,
       hardlock: client.opt.includes('hardlock'),
-      sqrlonly: client.opt.includes('sqrlonly')
+      sqrlonly: client.opt.includes('sqrlonly'),
+      created: new Date().toISOString()
     });
     if (sqrlData) {
+      opts.logger.info({ sqrlData }, 'Account created');
       await claimNutOwner(userId, nut);
       return sqrlData;
     }
+    opts.logger.info({ it }, 'Could not create sqrl row');
     return null;
   };
 
   const findAccounts = async (idks, nut) => {
-    const sqrlData = await opts.sqrlCrud.retrieve(idks);
-    opts.logger.debug({ idk, sqrlData }, 'Sqrl data lookup');
+    const filtered = idks.filter(Boolean);
+    opts.logger.info({ idks, nut, filtered }, 'Fetching sqrl data');
+    const sqrlData = await opts.sqrlCrud.retrieve(filtered);
     if (sqrlData) {
-      const userIds = sqrlData.map(i => i.user_id).filter(Boolean);
-      const user_id = userIds.length ? userIds[0] : null;
-      await claimNutOwner(user_id, nut);
-      return reorder(sqrlData, idks);
+      opts.logger.debug({ sqrlData }, 'Sqrl data lookup');
+      const userId = sqrlData.map(i => i.user_id).find(i => i);
+      await claimNutOwner(userId, nut);
+      return sqrlData;
     }
     return [];
   };
@@ -184,27 +192,33 @@ const createSQRLHandler = options => {
       nut
     })}`;
     const body = convertToBody(clientReturn);
-    await opts.nutCrud.create({
+    const created = await opts.nutCrud.create({
       nut,
       ip: existingNut.ip,
       initial: existingNut.initial || existingNut.id,
-      user_ip: existingNut.user_ip,
+      user_id: existingNut.user_id,
       hmac: signHmac(body)
     });
-    opts.logger.info({ clientReturn }, 'Follow up return value');
+    opts.logger.info({ clientReturn, created }, 'Follow up return value');
     return body;
   };
 
   const createErrorReturn = async (clientReturn, ip) => {
     // TODO: don't mutate clientReturn
     const nut = await createNut();
-    await opts.nutCrud.create({ nut, ip });
+    const created = await opts.nutCrud.create({
+      nut,
+      ip,
+      initial: null,
+      user_id: null,
+      hmac: null
+    });
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({
       nut
     })}`;
     const body = convertToBody(clientReturn);
-    opts.logger.info({ clientReturn }, 'Error return value');
+    opts.logger.info({ clientReturn, created }, 'Error return value');
     return body;
   };
 
@@ -223,7 +237,7 @@ const createSQRLHandler = options => {
         // must have nut
         !existingNut ||
         // Follow up nut's have same hmac
-        (existingNut.nut !== existingNut.code &&
+        (existingNut.initial &&
           previousMessageHmac(request) !== existingNut.hmac) ||
         // nut created within timeout
         Date.now() - existingNut.created > opts.nutTimeout
@@ -251,18 +265,19 @@ const createSQRLHandler = options => {
       const sameIp = existingNut.ip === requestIp;
 
       // look up user
-      const [sqrlData, previousSqrlData] = findAccounts(
+      const [sqrlData, previousSqrlData] = await findAccounts(
         [client.idk, client.pidk],
         existingNut
       );
+      opts.logger.info({ sqrlData, previousSqrlData }, 'SQRL data');
 
       if (
         // Check IP if same ip check is requested
         (!sameIp && client.opt.includes('noiptest')) ||
         // Initial nuts are only allowed to query
-        (client.cmd !== 'query' && existingNut.nut === existingNut.code) ||
+        (client.cmd !== 'query' && !existingNut.initial) ||
         // Follow up nut with existing accounts have same user ids
-        (existingNut.nut !== existingNut.code &&
+        (existingNut.initial &&
           sqrlData &&
           sqrlData.user_id !== existingNut.user_id) ||
         // idk and pidk must have same user
@@ -339,7 +354,8 @@ const createSQRLHandler = options => {
             if (!sqrlData.disabled) {
               await enableAccount(sqrlData, client);
               // Log in an account
-              await sqrlLogin(sqrlData, existingNut);
+              const initialNut = await sqrlLogin(sqrlData, existingNut);
+              setCpsUrl(initialNut, client, clientReturn);
             } else {
               // Command failed
               clientReturn.tif |= 0x40;
@@ -385,7 +401,11 @@ const createSQRLHandler = options => {
                 // Flag this is new idk
                 clientReturn.tif |= 0x01;
                 // Log in an account
-                await sqrlLogin(previousSqrlData, existingNut);
+                setCpsUrl(
+                  await sqrlLogin(previousSqrlData, existingNut),
+                  client,
+                  clientReturn
+                );
               }
             }
           } else {
@@ -396,7 +416,11 @@ const createSQRLHandler = options => {
               if (success) {
                 clientReturn.tif |= 0x01;
                 // Log in account
-                await sqrlLogin({ user_id: user.id }, existingNut);
+                setCpsUrl(
+                  await sqrlLogin({ user_id: user.id }, existingNut),
+                  client,
+                  clientReturn
+                );
               } else {
                 opts.logger.info({ client }, 'Could not create account');
                 clientReturn.tif |= 0x40;
@@ -411,7 +435,8 @@ const createSQRLHandler = options => {
           if (isValidUnlock(request, sqrlData)) {
             await enableAccount(sqrlData, client);
             // Log in an account
-            await sqrlLogin(sqrlData, existingNut);
+            const initialNut = await sqrlLogin(sqrlData, existingNut);
+            setCpsUrl(initialNut, client, clientReturn);
             // clear disabled bit
             clientReturn.tif &= ~0x08;
           } else {
@@ -428,12 +453,20 @@ const createSQRLHandler = options => {
           // Set flags to current choices
           await disableAccount(sqrlData, client);
           // Log in an account
-          await sqrlLogin(sqrlData, existingNut);
+          setCpsUrl(
+            await sqrlLogin(sqrlData, existingNut),
+            client,
+            clientReturn
+          );
           break;
         case 'remove':
           await removeAccount(sqrlData);
           // Log in an account
-          await sqrlLogin(sqrlData, existingNut);
+          setCpsUrl(
+            await sqrlLogin(sqrlData, existingNut),
+            client,
+            clientReturn
+          );
           break;
         default: {
           opts.logger.debug({ cmd: client.cmd }, 'Unknown command');
@@ -441,14 +474,6 @@ const createSQRLHandler = options => {
           // Client should not have sent command without verifying the user first
           clientReturn.tif |= 0x40 | 0x80;
         }
-      }
-
-      // All commands except query get url when CPS is requested
-      if (client.cmd !== 'query' && client.opt.includes('cps')) {
-        opts.logger.debug('Returning CPS return url');
-        clientReturn.url = `${opts.authUrl}?${querystring.encode({
-          code: existingNut.code
-        })}`;
       }
 
       return await createFollowUpReturn(clientReturn, existingNut);
@@ -463,7 +488,13 @@ const createSQRLHandler = options => {
     opts.logger.debug({ ip }, 'Create urls');
     const nut = await createNut();
     opts.logger.debug({ nut }, 'Created nut');
-    const savedNut = await opts.nutCrud.create({ ip, nut, initial: null });
+    const savedNut = await opts.nutCrud.create({
+      ip,
+      nut,
+      initial: null,
+      user_id: null,
+      hmac: null
+    });
     opts.logger.debug({ nut, savedNut }, 'Saved nut');
     const urlReturn = { nut };
     if (opts.x > 0) {
