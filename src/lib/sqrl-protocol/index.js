@@ -73,11 +73,12 @@ const createSQRLHandler = options => {
   // Log in an account
   const sqrlLogin = async (sqrl, nut) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
-    return await opts.nutCrud.allowLogin(
-      nut.initial,
-      sqrl.user_id,
-      new Date().toISOString()
-    );
+
+    return await opts.nutCrud.update({
+      id: nut.initial,
+      user_id: sqrl.user_id,
+      identified: new Date().toISOString()
+    });
   };
 
   // Log in an account
@@ -95,8 +96,8 @@ const createSQRLHandler = options => {
   const claimNutOwner = async (userId, nut) => {
     if (userId && nut && !nut.user_id) {
       opts.logger.info({ userId, nut }, 'Claiming nut');
-      await opts.nutCrud.claim(nut.nut, userId);
       nut.user_id = userId;
+      await opts.nutCrud.update(nut);
     }
   };
 
@@ -107,10 +108,16 @@ const createSQRLHandler = options => {
     }
     // Allow a grace period
     if (opts.codeGraceTimeout && opts.codeGraceTimeout > 0) {
-      const issuedCode = opts.nutCrud.findIssuedNut(code, ip);
+      const issuedCode = opts.nutCrud.retrieve(code);
       if (
+        // found initial nut
         issuedCode &&
-        Date.now() - issuedCode.issued <= opts.codeGraceTimeout
+        // issued nut
+        issuedCode.issued &&
+        // within grace period
+        Date.now() - issuedCode.issued <= opts.codeGraceTimeout &&
+        // ip address match
+        ip === issuedCode.ip
       ) {
         return issuedCode;
       }

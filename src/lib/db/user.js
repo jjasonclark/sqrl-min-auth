@@ -19,7 +19,7 @@ const userCrud = {
 
   async delete(id) {
     // Delete user
-    await db.none('DELETE FROM users WHERE id = $1', [id]);
+    await db.none('DELETE FROM users WHERE id = ${id}', { id });
     logger.info({ id }, 'Deleted user');
   }
 };

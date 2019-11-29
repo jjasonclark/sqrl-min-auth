@@ -31,10 +31,10 @@ const nutCrud = {
     return mapFromDb(result);
   },
 
-  async findIssuedNut(nut, ip) {
+  async retrieve(nut) {
     const result = await db.oneOrNone(
-      'SELECT id,nut,initial,ip,hmac,created,used,identified,issued,user_id FROM nuts WHERE issued IS NOT NULL AND nut = ${nut} AND ip = ${ip}',
-      { nut, ip }
+      'SELECT id,nut,initial,ip,hmac,created,used,identified,issued,user_id FROM nuts WHERE nut = ${nut}',
+      { nut }
     );
     return mapFromDb(result);
   },
@@ -56,18 +56,10 @@ const nutCrud = {
     return mapFromDb(result);
   },
 
-  async claim(nut, user_id) {
-    const result = await db.oneOrNone(
-      'UPDATE nuts SET user_id=${user_id} WHERE nut = ${nut} RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
-      { nut, user_id }
-    );
-    return mapFromDb(result);
-  },
-
-  async allowLogin(id, user_id, identified) {
+  async update(it) {
     const result = await db.oneOrNone(
       'UPDATE nuts SET identified=${identified},user_id=${user_id} WHERE id = ${id} RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
-      { identified, user_id, id }
+      it
     );
     return mapFromDb(result);
   }
