@@ -33,3 +33,5 @@ CREATE TABLE IF NOT EXISTS nuts(
   issued TIMESTAMP,
   user_id INT REFERENCES users(id)
 );
+
+CREATE INDEX IF NOT EXISTS nuts_nut ON nuts (nut);
