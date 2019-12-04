@@ -16,12 +16,8 @@ const convertToBody = clientReturn => {
   return base64url.encode(rawReturn);
 };
 
-const urlJoin = (left, right) => {
-  if (left.endsWith('/')) {
-    return left + right.substr(1);
-  }
-  return left + right;
-};
+const urlJoin = (left, right) =>
+  left.endsWith('/') ? left + right.substr(1) : left + right;
 
 const defaultOptions = base => ({
   logger: nullLogger(),
@@ -41,14 +37,13 @@ const defaultOptions = base => ({
   hmacSecret: ''
 });
 
-const applyDefaults = (dest, defaults) => {
-  Object.keys(defaults).forEach(key => {
-    if (!dest.hasOwnProperty(key)) {
-      dest[key] = defaults[key];
+const applyDefaults = (dest, defaults) =>
+  Object.keys(defaults).reduce((memo, key) => {
+    if (!memo.hasOwnProperty(key)) {
+      memo[key] = defaults[key];
     }
-  });
-  return dest;
-};
+    return memo;
+  }, dest);
 
 const createSQRLHandler = options => {
   const apiBaseUrl = new url.URL(options.baseUrl);
@@ -57,14 +52,11 @@ const createSQRLHandler = options => {
 
   const signData = what => signHmac(what, opts.hmacSecret);
 
-  const createUser = async () => {
-    return await opts.userCrud.create();
-  };
-  const deleteUser = async userId => {
-    return await opts.userCrud.delete(userId);
-  };
-
   const authUrl = code => `${opts.authUrl}?${querystring.encode({ code })}`;
+
+  const createUser = async () => await opts.userCrud.create();
+
+  const deleteUser = async userId => await opts.userCrud.delete(userId);
 
   const createUrls = async ip => {
     opts.logger.debug({ ip }, 'Create urls');
@@ -99,7 +91,7 @@ const createSQRLHandler = options => {
   const deviceSqrlLogin = async (nut, sqrl) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
 
-    await opts.nutCrud.update({
+    await opts.nutCrud.identify({
       id: nut.initial,
       user_id: sqrl.user_id,
       identified: new Date().toISOString()
@@ -111,7 +103,7 @@ const createSQRLHandler = options => {
     opts.logger.info({ nut, clientReturn }, 'CPS log in');
     nut.identified = new Date().toISOString();
     clientReturn.url = authUrl(nut.nut);
-    await opts.nutCrud.update(nut);
+    await opts.nutCrud.identify(nut);
   };
 
   // Log in an account
@@ -129,67 +121,15 @@ const createSQRLHandler = options => {
     if (userId && nut && !nut.user_id) {
       opts.logger.info({ userId, nut }, 'Claiming nut');
       nut.user_id = userId;
-      await opts.nutCrud.update(nut);
+      await opts.nutCrud.identify(nut);
     }
   };
 
-  const useCode = async (code, ip) => {
-    return await opts.nutCrud.issueNut(code, ip);
-  };
+  const useCode = async (code, ip) => await opts.nutCrud.issue(code, ip);
 
-  const createAccount = async (userId, client) => {
-    if (!userId) {
-      return null;
-    }
-    const sqrlData = {
-      idk: client.idk,
-      suk: client.suk,
-      vuk: client.vuk,
-      user_id: userId,
-      created: new Date().toISOString(),
-      disabled: null,
-      superseded: null
-    };
-    const result = await opts.sqrlCrud.create(sqrlData);
-    return result ? sqrlData : null;
-  };
+  const useNut = async nutParam => await opts.nutCrud.use(nutParam);
 
-  const findAccounts = async idks => {
-    const filtered = idks.filter(Boolean);
-    opts.logger.info({ idks, filtered }, 'Fetching sqrl data');
-    const results = await opts.sqrlCrud.retrieve(filtered);
-    return results || [];
-  };
-
-  const enableAccount = async sqrlData => {
-    opts.logger.info({ sqrlData }, 'Enabling sqrl');
-    sqrlData.disabled = null;
-    // Set flags to current choices
-    await opts.sqrlCrud.update(sqrlData);
-  };
-
-  const disableAccount = async sqrlData => {
-    opts.logger.info({ sqrlData }, 'Disabling sqrl');
-    sqrlData.disabled = new Date().toISOString();
-    await opts.sqrlCrud.update(sqrlData);
-  };
-
-  const supersedAccount = async sqrlData => {
-    opts.logger.info({ sqrlData }, 'Superseding sqrl');
-    const updateTime = new Date().toISOString();
-    sqrlData.disabled = sqrlData.disabled || updateTime;
-    sqrlData.superseded = updateTime;
-    // mark old idk as disabled and superseded
-    await opts.sqrlCrud.update(sqrlData);
-  };
-
-  const removeAccount = async sqrlData => {
-    opts.logger.info({ sqrlData }, 'Deleting sqrl');
-    // Delete login to user association
-    await opts.sqrlCrud.delete(sqrlData.user_id);
-    // Delete user account
-    await deleteUser(sqrlData.user_id);
-  };
+  const withinTimeout = nut => Date.now() - nut.created > opts.nutTimeout;
 
   const createFollowUpReturn = async (clientReturn, existingNut) => {
     // TODO: don't mutate clientReturn
@@ -225,12 +165,58 @@ const createSQRLHandler = options => {
     return body;
   };
 
-  const useNut = async nutParam => {
-    return await opts.nutCrud.useNut(nutParam);
+  const findAccounts = async idks => {
+    const filtered = idks.filter(Boolean);
+    opts.logger.info({ idks, filtered }, 'Fetching sqrl data');
+    const results = await opts.sqrlCrud.retrieve(filtered);
+    return results || [];
   };
 
-  const withinTimeout = nut => {
-    return Date.now() - nut.created > opts.nutTimeout;
+  const createAccount = async (userId, client) => {
+    if (!userId) {
+      return null;
+    }
+    const sqrlData = {
+      idk: client.idk,
+      suk: client.suk,
+      vuk: client.vuk,
+      user_id: userId,
+      created: new Date().toISOString(),
+      disabled: null,
+      superseded: null
+    };
+    const result = await opts.sqrlCrud.create(sqrlData);
+    return result ? sqrlData : null;
+  };
+
+  const enableAccount = async sqrlData => {
+    opts.logger.info({ sqrlData }, 'Enabling sqrl');
+    sqrlData.disabled = null;
+    // Set flags to current choices
+    await opts.sqrlCrud.update(sqrlData);
+  };
+
+  const disableAccount = async sqrlData => {
+    opts.logger.info({ sqrlData }, 'Disabling sqrl');
+    sqrlData.disabled = new Date().toISOString();
+    await opts.sqrlCrud.update(sqrlData);
+  };
+
+  const supersedAccount = async sqrlData => {
+    opts.logger.info({ sqrlData }, 'Superseding sqrl');
+    const updateTime = new Date().toISOString();
+    sqrlData.disabled = sqrlData.disabled || updateTime;
+    sqrlData.superseded = updateTime;
+    // mark old idk as disabled and superseded
+    await opts.sqrlCrud.update(sqrlData);
+  };
+
+  const removeAccount = async sqrlData => {
+    opts.logger.info({ sqrlData }, 'Deleting sqrl');
+    // Delete login to user association
+    await opts.sqrlCrud.delete(sqrlData.user_id);
+    // Delete user account
+    await deleteUser(sqrlData.user_id);
   };
 
   const handler = async (ip, inputNut, body) => {
