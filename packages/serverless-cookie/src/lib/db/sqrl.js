@@ -27,11 +27,18 @@ const cleanString = value => {
   return formatted;
 };
 
+const formatDb = result => ({
+  ...result,
+  idk: cleanString(result.idk),
+  suk: cleanString(result.suk),
+  vuk: cleanString(result.vuk)
+});
+
 // Crud for sqrl table
 const sqrlCrud = {
   create(it) {
     return db.oneOrNone(
-      'INSERT INTO sqrl (idk,user_id,suk,vuk,created) VALUES (${idk},${user_id},${suk},${vuk},${created}) RETURNING idk',
+      'INSERT INTO sqrl (idk,user_id,suk,vuk,created) VALUES (${idk},${user_id},${suk},${vuk},${created}) RETURNING idk,user_id,suk,vuk,created,disabled,superseded',
       it
     );
   },
@@ -45,15 +52,7 @@ const sqrlCrud = {
       return null;
     }
 
-    return reorder(
-      results.map(result => ({
-        ...result,
-        idk: cleanString(result.idk),
-        suk: cleanString(result.suk),
-        vuk: cleanString(result.vuk)
-      })),
-      idks
-    );
+    return reorder(results.map(formatDb), idks);
   },
 
   update(it) {
