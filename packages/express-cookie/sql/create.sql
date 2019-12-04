@@ -6,8 +6,6 @@ CREATE TABLE IF NOT EXISTS sqrl(
   idk CHAR(44) PRIMARY KEY,
   suk CHAR(44),
   vuk CHAR(44),
-  hardlock BOOLEAN DEFAULT FALSE,
-  sqrlonly BOOLEAN DEFAULT FALSE,
   -- When created
   created TIMESTAMP DEFAULT NOW(),
   -- when disabled last

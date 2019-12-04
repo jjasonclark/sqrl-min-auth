@@ -31,14 +31,14 @@ const cleanString = value => {
 const sqrlCrud = {
   create(it) {
     return db.oneOrNone(
-      'INSERT INTO sqrl (idk,user_id,suk,vuk,hardlock,sqrlonly,created) VALUES (${idk},${user_id},${suk},${vuk},${hardlock},${sqrlonly},${created}) RETURNING idk',
+      'INSERT INTO sqrl (idk,user_id,suk,vuk,created) VALUES (${idk},${user_id},${suk},${vuk},${created}) RETURNING idk',
       it
     );
   },
 
   async retrieve(idks) {
     const results = await db.manyOrNone(
-      'SELECT idk,user_id,suk,vuk,hardlock,sqrlonly,created,disabled,superseded FROM sqrl WHERE idk IN ($1:list)',
+      'SELECT idk,user_id,suk,vuk,created,disabled,superseded FROM sqrl WHERE idk IN ($1:list)',
       [idks]
     );
     if (!results) {
@@ -58,7 +58,7 @@ const sqrlCrud = {
 
   update(it) {
     return db.none(
-      'UPDATE sqrl set disabled=${disabled},hardlock=${hardlock},sqrlonly=${sqrlonly},superseded=${superseded} WHERE idk = ${idk}',
+      'UPDATE sqrl set disabled=${disabled},superseded=${superseded} WHERE idk = ${idk}',
       it
     );
   },

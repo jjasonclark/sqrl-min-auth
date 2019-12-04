@@ -1,0 +1,15 @@
+{
+  "delay": 2000,
+  "restartable": "rs",
+  "ignore": ["*.test.js"],
+  "verbose": true,
+  "execMap": {
+    "js": "node --inspect"
+  },
+  "watch": ["config/", "src/"],
+  "env": {
+    "NODE_CONFIG_ENV": "development",
+    "NODE_ENV": "development"
+  },
+  "ext": "js,json"
+}

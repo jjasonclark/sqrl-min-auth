@@ -26,6 +26,7 @@
     "pino": "^5.13.5",
     "serverless": "^1.56.1",
     "serverless-prune-plugin": "^1.4.1",
+    "sqrl-protocol": "file:../sqrl-protocol",
     "tweetnacl": "^1.0.1",
     "universal-base64url": "^1.1.0",
     "uuid": "^3.3.3"
