@@ -1,6 +1,5 @@
 'use strict';
 
-const logger = require('pino')({ level: 'info' });
 const { sign } = require('tweetnacl');
 const get = require('dlv');
 
@@ -19,7 +18,6 @@ const isValidSignature = (request, signature, publicKey) => {
       Buffer.from(publicKey || '', 'base64')
     );
   } catch (ex) {
-    logger.error(ex);
     return false;
   }
 };

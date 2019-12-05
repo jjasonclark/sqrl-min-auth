@@ -1,8 +1,17 @@
 'use strict';
 
-const logger = require('pino')({ level: 'info' });
+const logger = require('pino')({ level: 'debug' });
 const get = require('dlv');
 const sqrlHandler = require('../lib/sqrl');
+
+const processSqrlProtocol = async (requestIp, inputNut, body) => {
+  try {
+    return await sqrlHandler.handler(requestIp, inputNut, body);
+  } catch (ex) {
+    logger.error(ex);
+    return '';
+  }
+};
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');
@@ -10,7 +19,7 @@ const handler = async (event, context) => {
   const inputNut = get(event, 'queryStringParameters.nut');
   const body = get(event, 'body');
   logger.debug({ requestIp, inputNut, body }, 'Request parameters');
-  const sqrlResult = await sqrlHandler.handler(requestIp, inputNut, body);
+  const sqrlResult = await processSqrlProtocol(requestIp, inputNut, body);
   logger.debug({ sqrlResult }, 'SQRL result');
   return {
     statusCode: 200,

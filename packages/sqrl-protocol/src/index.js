@@ -19,23 +19,28 @@ const convertToBody = clientReturn => {
 const urlJoin = (left, right) =>
   left.endsWith('/') ? left + right.substr(1) : left + right;
 
-const defaultOptions = base => ({
-  logger: nullLogger(),
-  nutTimeout: 60 * 60 * 1000, // 1 hour in ms
-  cancelPath: urlJoin(base.pathname, '/sqrl'),
-  // used for qry return value
-  sqrlUrl: urlJoin(base.pathname, '/sqrl'),
-  // used for login url
-  sqrlProtoUrl: urlJoin(
-    `sqrl://${base.hostname}:${base.port}${base.pathname}`,
-    '/sqrl'
-  ),
-  successUrl: urlJoin(base.toString(), '/loggedin'),
-  authUrl: urlJoin(base.toString(), '/authenticate'),
-  x: base.pathname.length - base.pathname.endsWith('/') ? 1 : 0,
-  cpsBaseUrl: 'http://localhost:25519',
-  hmacSecret: ''
-});
+const defaultOptions = base => {
+  const portCmd = [80, 443, '80', '443', ''].includes(base.port)
+    ? ''
+    : `:${base.port}`;
+  return {
+    logger: nullLogger(),
+    nutTimeout: 60 * 60 * 1000, // 1 hour in ms
+    cancelPath: urlJoin(base.pathname, '/sqrl'),
+    // used for qry return value
+    sqrlUrl: urlJoin(base.pathname, '/sqrl'),
+    // used for login url
+    sqrlProtoUrl: urlJoin(
+      `sqrl://${base.hostname}${portCmd}${base.pathname}`,
+      '/sqrl'
+    ),
+    successUrl: urlJoin(base.toString(), '/loggedin'),
+    authUrl: urlJoin(base.toString(), '/authenticate'),
+    x: base.pathname.length - (base.pathname.endsWith('/') ? 1 : 0),
+    cpsBaseUrl: 'http://localhost:25519',
+    hmacSecret: ''
+  };
+};
 
 const applyDefaults = (dest, defaults) =>
   Object.keys(defaults).reduce((memo, key) => {
@@ -52,7 +57,10 @@ const createSQRLHandler = options => {
 
   const signData = what => signHmac(what, opts.hmacSecret);
 
-  const authUrl = code => `${opts.authUrl}?${querystring.encode({ code })}`;
+  const authUrl = code =>
+    `${opts.authUrl}?${querystring.encode({
+      code: `${code}.${signData(code)}`
+    })}`;
 
   const createUser = async () => await opts.userCrud.create();
 
@@ -80,7 +88,7 @@ const createSQRLHandler = options => {
       can: base64url.encode(opts.cancelPath)
     })}`;
     return {
-      cps: `${opts.cpsBaseUrl}/${base64url.encode(cpsAuthUrl)}`,
+      cps: urlJoin(opts.cpsBaseUrl, `/${base64url.encode(cpsAuthUrl)}`),
       login: `${opts.sqrlProtoUrl}?${querystring.encode(urlReturn)}`,
       poll: authUrl(nut),
       success: opts.successUrl
@@ -125,7 +133,18 @@ const createSQRLHandler = options => {
     }
   };
 
-  const useCode = async (code, ip) => await opts.nutCrud.issue(code, ip);
+  const useCode = async (codeParam, ip) => {
+    const firstDot = codeParam.indexOf('.');
+    if (firstDot < 2 || codeParam.length < 3) {
+      return null;
+    }
+    const code = codeParam.substring(0, firstDot);
+    const signature = codeParam.substr(firstDot + 1);
+    if (signature === signData(code)) {
+      return await opts.nutCrud.issue(code, ip);
+    }
+    return null;
+  };
 
   const useNut = async nutParam => await opts.nutCrud.use(nutParam);
 

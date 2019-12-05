@@ -75,7 +75,7 @@
           var sqrlUrl = document.getElementById('sqrlLogin').href;
           var sqrlQrSvg = QRCode.generateSVG(sqrlUrl);
           document.getElementById('sqrlqr').appendChild(sqrlQrSvg);
-          //pollLogin();
+          pollLogin();
         }
 
         setTimeout(startup, 100);

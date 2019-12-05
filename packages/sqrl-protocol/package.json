@@ -7,7 +7,7 @@
   },
   "main": "src/index.js",
   "scripts": {
-    "format": "prettier --write '{src/**/*.{js,json,graphql,md},*.md,package.json,*.js}'"
+    "format": "prettier --write '{src/**/*.js,*.md,package.json,*.js}'"
   },
   "keywords": [
     "authentication",
@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "dlv": "^1.1.3",
-    "pino": "^5.14.0",
     "tweetnacl": "^1.0.1",
     "universal-base64url": "^1.1.0"
   },
