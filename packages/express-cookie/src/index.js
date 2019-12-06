@@ -1,39 +1,34 @@
 'use strict';
 
-const fs = require('fs');
-const https = require('https');
-const config = require('config');
-const { createSQRLHandler } = require('sqrl-protocol');
 const bodyParser = require('body-parser');
+const config = require('config');
 const cookieParser = require('cookie-parser');
 const death = require('death')({ uncaughtException: true });
 const express = require('express');
 const expressPinoLogger = require('express-pino-logger');
-const get = require('dlv');
 const helmet = require('helmet');
+const https = require('https');
 const mustacheExpress = require('mustache-express');
 const path = require('path');
 const pino = require('pino');
 const stoppable = require('stoppable');
-const sqrlCrud = require('./lib/db/sqrl');
-const nutCrud = require('./lib/db/nut');
-const userCrud = require('./lib/db/user');
+const { createSQRLHandler } = require('sqrl-protocol');
+const PgSqrlStore = require('pg-sqrl-store');
 
-const sqrlHmac = config.get('sqrlHmac');
+const connectionString = config.get('db.connectionString');
+const sqrlConfig = config.get('sqrl');
 const stopGrace = config.get('stopGrace');
+const cookieSecret = config.get('cookie.secret');
+const cookieConfig = config.util.toObject(config.get('cookie.settings'));
 const loggerConfig = config.util.toObject(config.get('logger'));
 const expressConfig = config.util.toObject(config.get('express'));
-
-const domainName = 'self.test';
+const httpsConfig = config.util.toObject(config.get('https'));
 
 const logger = pino(loggerConfig);
 const sqrlHandler = createSQRLHandler({
-  baseUrl: `https://${domainName}:3000`,
+  ...sqrlConfig,
   logger,
-  sqrlCrud,
-  nutCrud,
-  userCrud,
-  hmacSecret: sqrlHmac
+  store: new PgSqrlStore(connectionString)
 });
 
 // Exposed server
@@ -55,7 +50,7 @@ app.use((err, req, res, next) => {
 // Middleware
 app.use(expressPinoLogger({ logger }));
 app.use(helmet());
-app.use(cookieParser('myCookieSecret'));
+app.use(cookieParser(cookieSecret));
 app.use(
   bodyParser.text({
     defaultCharset: 'utf-8',
@@ -90,16 +85,11 @@ app.get('/loggedin', async (req, res) => {
 
 app.post('/logout', async (req, res) => {
   res.cookie('user', '', {
-    secure: true,
-    httpOnly: true,
-    sameSite: 'strict',
-    maxAge: 0,
-    path: '/',
-    domain: domainName
+    ...cookieConfig,
+    maxAge: 0
   });
   res.redirect(302, '/');
 });
-const cookieTimeout = 2 * 7 * 24 * 60 * 60; // 2 weeks in seconds
 
 app.get('/authenticate', async (req, res) => {
   try {
@@ -109,15 +99,7 @@ app.get('/authenticate', async (req, res) => {
     const foundNut = await sqrlHandler.useCode(codeParam, requestIp);
     logger.debug({ foundNut }, 'Found nut');
     if (foundNut && foundNut.user_id) {
-      res.cookie('user', foundNut.user_id.toString(), {
-        signed: true,
-        secure: true,
-        httpOnly: true,
-        sameSite: 'strict',
-        maxAge: cookieTimeout,
-        path: '/',
-        domain: domainName
-      });
+      res.cookie('user', foundNut.user_id.toString(), cookieConfig);
       res.redirect(302, '/loggedin');
       return;
     }
@@ -154,17 +136,9 @@ const deathCleanup = death((signal, err) => {
 });
 
 server = stoppable(
-  https
-    .createServer(
-      {
-        key: fs.readFileSync(__dirname + '/../self.key', 'utf8'),
-        cert: fs.readFileSync(__dirname + '/../self.crt', 'utf8')
-      },
-      app
-    )
-    .listen(expressConfig, () => {
-      const { address, port } = server.address();
-      logger.info(`🚀 Server started at https://${address}:${port}`);
-    }),
+  https.createServer(httpsConfig, app).listen(expressConfig, () => {
+    const { address, port } = server.address();
+    logger.info(`🚀 Server started at https://${address}:${port}`);
+  }),
   stopGrace
 );

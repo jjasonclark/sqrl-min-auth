@@ -9,15 +9,17 @@ const readFile = util.promisify(fs.readFile);
 const pgp = require('pg-promise')();
 
 const sqlPath = path.resolve(__dirname, '..', 'sql', 'create.sql');
-const db = pgp('postgres://sqrl:sqrl@localhost:5432/sqrl');
+const connectionString = 'postgres://sqrl:sqrl@localhost:5432/sqrl';
 
-const applySqlFile = async (dbo, sqlPath) => {
+const applySqlFile = async () => {
   try {
     logger.info({ sqlPath }, 'reading file');
     const commands = (await readFile(sqlPath)).toString();
     logger.info({ commandLength: commands.length }, 'Read migration file');
-    const result = await dbo.none(commands);
+    const db = pgp(connectionString);
+    const result = await db.none(commands);
     logger.info({ result }, 'Apply success');
+    await pgp.end();
     return true;
   } catch (error) {
     logger.error(error);
@@ -25,5 +27,4 @@ const applySqlFile = async (dbo, sqlPath) => {
   return false;
 };
 
-// TODO: close db connection
-applySqlFile(db, sqlPath);
+applySqlFile();

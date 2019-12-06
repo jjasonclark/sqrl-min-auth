@@ -2,18 +2,16 @@
 
 const logger = require('pino')({ level: 'debug' });
 const { createSQRLHandler } = require('sqrl-protocol');
-const sqrlCrud = require('./db/sqrl');
-const nutCrud = require('./db/nut');
-const userCrud = require('./db/user');
+const PgSqrlStore = require('pg-sqrl-store');
 const secrets = require('../../secrets.json');
+
 const baseUrl = process.env.URL_BASE;
+const connectionString = process.env.POSTGRES_CONNECTION_STRING;
 
 const sqrlHandler = createSQRLHandler({
   baseUrl,
   logger,
-  sqrlCrud,
-  nutCrud,
-  userCrud,
+  store: new PgSqrlStore(connectionString),
   hmacSecret: secrets.nuts.hmac
 });
 

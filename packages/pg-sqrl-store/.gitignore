@@ -99,9 +99,3 @@ public
 
 # TernJS port file
 .tern-port
-secrets.json
-
-/*.crt
-/*.key
-
-/config/local-*

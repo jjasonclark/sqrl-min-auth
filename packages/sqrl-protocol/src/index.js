@@ -1,14 +1,14 @@
 'use strict';
 
-const url = require('url');
+const base64url = require('universal-base64url');
 const get = require('dlv');
 const querystring = require('querystring');
-const base64url = require('universal-base64url');
+const url = require('url');
 const { createNut } = require('./nut');
-const { signHmac } = require('./hmac');
 const { decodeSQRLPack, encodeSQRLPack } = require('./sqrl-pack');
 const { isValidSignature } = require('./signature');
 const { nullLogger } = require('./null-logger');
+const { signHmac } = require('./hmac');
 
 const convertToBody = clientReturn => {
   clientReturn.tif = clientReturn.tif.toString(16);
@@ -62,16 +62,16 @@ const createSQRLHandler = options => {
       code: `${code}.${signData(code)}`
     })}`;
 
-  const createUser = async () => await opts.userCrud.create();
+  const createUser = async () => await opts.store.createUser();
 
-  const deleteUser = async userId => await opts.userCrud.delete(userId);
+  const deleteUser = async userId => await opts.store.deleteUser(userId);
 
   const createUrls = async ip => {
     opts.logger.debug({ ip }, 'Create urls');
     const nut = await createNut();
     opts.logger.debug({ nut }, 'Created nut');
     // TODO: handle nut collision
-    const savedNut = await opts.nutCrud.create({
+    const savedNut = await opts.store.createNut({
       ip,
       nut,
       initial: null,
@@ -99,7 +99,7 @@ const createSQRLHandler = options => {
   const deviceSqrlLogin = async (nut, sqrl) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
 
-    await opts.nutCrud.identify({
+    await opts.store.identifyNut({
       id: nut.initial,
       user_id: sqrl.user_id,
       identified: new Date().toISOString()
@@ -111,7 +111,7 @@ const createSQRLHandler = options => {
     opts.logger.info({ nut, clientReturn }, 'CPS log in');
     nut.identified = new Date().toISOString();
     clientReturn.url = authUrl(nut.nut);
-    await opts.nutCrud.identify(nut);
+    await opts.store.identifyNut(nut);
   };
 
   // Log in an account
@@ -124,12 +124,12 @@ const createSQRLHandler = options => {
   };
 
   const claimNutOwner = async (sqrlDatas, nut) => {
-    opts.logger.debug({ sqrlDatas }, 'Sqrl data lookup');
+    opts.logger.debug({ sqrlDatas }, 'Claiming nuts');
     const userId = sqrlDatas.map(i => (i ? i.user_id : null)).find(Boolean);
     if (userId && nut && !nut.user_id) {
-      opts.logger.info({ userId, nut }, 'Claiming nut');
+      opts.logger.info({ userId, nut }, 'Claiming nut for user');
       nut.user_id = userId;
-      await opts.nutCrud.identify(nut);
+      await opts.store.identifyNut(nut);
     }
   };
 
@@ -141,12 +141,12 @@ const createSQRLHandler = options => {
     const code = codeParam.substring(0, firstDot);
     const signature = codeParam.substr(firstDot + 1);
     if (signature === signData(code)) {
-      return await opts.nutCrud.issue(code, ip);
+      return await opts.store.issueNut(code, ip);
     }
     return null;
   };
 
-  const useNut = async nutParam => await opts.nutCrud.use(nutParam);
+  const useNut = async nutParam => await opts.store.useNut(nutParam);
 
   const withinTimeout = nut => Date.now() - nut.created > opts.nutTimeout;
 
@@ -156,7 +156,7 @@ const createSQRLHandler = options => {
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({ nut })}`;
     const body = convertToBody(clientReturn);
-    const created = await opts.nutCrud.create({
+    const created = await opts.store.createNut({
       nut,
       ip: existingNut.ip,
       initial: existingNut.initial || existingNut.id,
@@ -170,7 +170,7 @@ const createSQRLHandler = options => {
   const createErrorReturn = async (clientReturn, ip) => {
     // TODO: don't mutate clientReturn
     const nut = await createNut();
-    const created = await opts.nutCrud.create({
+    const created = await opts.store.createNut({
       nut,
       ip,
       initial: null,
@@ -187,7 +187,7 @@ const createSQRLHandler = options => {
   const findAccounts = async idks => {
     const filtered = idks.filter(Boolean);
     opts.logger.info({ idks, filtered }, 'Fetching sqrl data');
-    const results = await opts.sqrlCrud.retrieve(filtered);
+    const results = await opts.store.retrieveSqrl(filtered);
     return results || [];
   };
 
@@ -204,7 +204,7 @@ const createSQRLHandler = options => {
       disabled: null,
       superseded: null
     };
-    const result = await opts.sqrlCrud.create(sqrlData);
+    const result = await opts.store.createSqrl(sqrlData);
     return result ? sqrlData : null;
   };
 
@@ -212,13 +212,13 @@ const createSQRLHandler = options => {
     opts.logger.info({ sqrlData }, 'Enabling sqrl');
     sqrlData.disabled = null;
     // Set flags to current choices
-    await opts.sqrlCrud.update(sqrlData);
+    await opts.store.updateSqrl(sqrlData);
   };
 
   const disableAccount = async sqrlData => {
     opts.logger.info({ sqrlData }, 'Disabling sqrl');
     sqrlData.disabled = new Date().toISOString();
-    await opts.sqrlCrud.update(sqrlData);
+    await opts.store.updateSqrl(sqrlData);
   };
 
   const supersedAccount = async sqrlData => {
@@ -227,13 +227,13 @@ const createSQRLHandler = options => {
     sqrlData.disabled = sqrlData.disabled || updateTime;
     sqrlData.superseded = updateTime;
     // mark old idk as disabled and superseded
-    await opts.sqrlCrud.update(sqrlData);
+    await opts.store.updateSqrl(sqrlData);
   };
 
   const removeAccount = async sqrlData => {
     opts.logger.info({ sqrlData }, 'Deleting sqrl');
     // Delete login to user association
-    await opts.sqrlCrud.delete(sqrlData.user_id);
+    await opts.store.deleteSqrl(sqrlData.user_id);
     // Delete user account
     await deleteUser(sqrlData.user_id);
   };
