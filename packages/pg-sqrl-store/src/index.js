@@ -39,8 +39,7 @@ const formatNut = result => {
     return null;
   }
   return {
-    nut: result.nut.toString().trim(),
-    ip: result.ip.toString().trim(),
+    ip: result.ip,
     hmac: result.hmac ? result.hmac.toString().trim() : null,
     created: Date.parse(result.created),
     used: result.used ? Date.parse(result.used) : null,
@@ -53,39 +52,56 @@ const formatNut = result => {
 };
 
 class PgSqrlStore {
-  constructor(connectionString) {
+  constructor(connectionString, options) {
     this.db = pgp(connectionString);
+    this.logger = options.logger;
   }
 
   async createNut(it) {
     // TODO: verify write
     const result = await this.db.oneOrNone(
-      'INSERT INTO nuts (nut,initial,ip,user_id,hmac) VALUES (${nut},${initial},${ip},${user_id},${hmac}) RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
+      'INSERT INTO nuts (initial,ip,user_id,hmac) VALUES (${initial},${ip},${user_id},${hmac}) RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
       it
     );
     return formatNut(result);
   }
 
-  async useNut(nut) {
+  async retrieveNut(id) {
     const result = await this.db.oneOrNone(
-      'UPDATE nuts SET used=NOW() WHERE used IS NULL AND nut = ${nut} RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
-      { nut }
+      'SELECT id,initial,ip,hmac,created,used,identified,issued,user_id FROM nuts WHERE id = ${id}',
+      { id }
+    );
+    return formatNut(result);
+  }
+
+  async updateNut(it) {
+    const result = await this.db.oneOrNone(
+      'UPDATE nuts SET hmac=${hmac} WHERE id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
+      it
+    );
+    return formatNut(result);
+  }
+
+  async useNut(id) {
+    const result = await this.db.oneOrNone(
+      'UPDATE nuts SET used=NOW() WHERE used IS NULL AND id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
+      { id }
     );
     return formatNut(result);
   }
 
   // Called to indicate the code has been issued to a user
-  async issueNut(nut, ip) {
+  async issueNut(id, ip) {
     const result = await this.db.oneOrNone(
-      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND nut = ${nut} AND ip = ${ip} RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
-      { nut, ip }
+      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND id = ${id} AND ip = ${ip} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
+      { id, ip }
     );
     return formatNut(result);
   }
 
   async identifyNut(it) {
     const result = await this.db.oneOrNone(
-      'UPDATE nuts SET identified=${identified},user_id=${user_id} WHERE id = ${id} RETURNING id,nut,initial,ip,hmac,created,used,identified,issued,user_id',
+      'UPDATE nuts SET identified=${identified},user_id=${user_id} WHERE id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
       it
     );
     return formatNut(result);
@@ -117,8 +133,11 @@ class PgSqrlStore {
     );
   }
 
-  async deleteSqrl(userId) {
-    return await this.db.none('DELETE FROM sqrl WHERE user_id = $1', [userId]);
+  async deleteSqrl(it) {
+    return await this.db.none(
+      'DELETE FROM sqrl WHERE user_id = ${user_id}',
+      it
+    );
   }
 
   async createUser() {

@@ -17,6 +17,10 @@ module.exports = {
   db: { connectionString: 'postgres://sqrl:sqrl@localhost:5432/sqrl' },
   sqrl: {
     baseUrl: 'https://self.test:3000',
+    blowfishSecrets: {
+      key: 'abcdefghijklmnopqrst',
+      iv: '12345678'
+    },
     hmacSecret: 'mysuperSecret!'
   }
 };

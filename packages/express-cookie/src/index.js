@@ -28,7 +28,7 @@ const logger = pino(loggerConfig);
 const sqrlHandler = createSQRLHandler({
   ...sqrlConfig,
   logger,
-  store: new PgSqrlStore(connectionString)
+  store: new PgSqrlStore(connectionString, { logger })
 });
 
 // Exposed server

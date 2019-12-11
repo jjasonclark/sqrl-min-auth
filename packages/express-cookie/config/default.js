@@ -17,7 +17,11 @@ module.exports = {
   db: { connectionString: null },
   sqrl: {
     baseUrl: null,
-    hmacSecret: null
+    hmacSecret: null,
+    blowfishSecrets: {
+      key: '',
+      iv: ''
+    }
   },
   express: { port: 3000, host: '0.0.0.0' },
   stopGrace: 5000

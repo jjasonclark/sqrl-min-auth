@@ -11,7 +11,7 @@ const connectionString = process.env.POSTGRES_CONNECTION_STRING;
 const sqrlHandler = createSQRLHandler({
   baseUrl,
   logger,
-  store: new PgSqrlStore(connectionString),
+  store: new PgSqrlStore(connectionString, { logger }),
   hmacSecret: secrets.nuts.hmac
 });
 
