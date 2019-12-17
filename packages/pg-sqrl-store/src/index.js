@@ -41,10 +41,10 @@ const formatNut = result => {
   return {
     ip: result.ip,
     hmac: result.hmac ? result.hmac.toString().trim() : null,
-    created: Date.parse(result.created),
-    used: result.used ? Date.parse(result.used) : null,
+    created: result.created,
+    used: result.used,
     identified: result.identified,
-    issued: result.issued ? Date.parse(result.issued) : null,
+    issued: result.issued,
     id: result.id,
     initial: result.initial,
     user_id: result.user_id
@@ -76,32 +76,7 @@ class PgSqrlStore {
 
   async updateNut(it) {
     const result = await this.db.oneOrNone(
-      'UPDATE nuts SET hmac=${hmac} WHERE id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
-      it
-    );
-    return formatNut(result);
-  }
-
-  async useNut(id) {
-    const result = await this.db.oneOrNone(
-      'UPDATE nuts SET used=NOW() WHERE used IS NULL AND id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
-      { id }
-    );
-    return formatNut(result);
-  }
-
-  // Called to indicate the code has been issued to a user
-  async issueNut(id, ip) {
-    const result = await this.db.oneOrNone(
-      'UPDATE nuts SET issued=NOW() WHERE issued IS NULL AND identified IS NOT NULL AND id = ${id} AND ip = ${ip} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
-      { id, ip }
-    );
-    return formatNut(result);
-  }
-
-  async identifyNut(it) {
-    const result = await this.db.oneOrNone(
-      'UPDATE nuts SET identified=${identified},user_id=${user_id} WHERE id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
+      'UPDATE nuts SET hmac=${hmac},used=${used},issued=${issued},identified=${identified},user_id=${user_id} WHERE id = ${id} RETURNING id,initial,ip,hmac,created,used,identified,issued,user_id',
       it
     );
     return formatNut(result);

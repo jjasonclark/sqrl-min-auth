@@ -79,7 +79,9 @@ const createSQRLHandler = options => {
   const formatReturnNut = nut => createNut(nut.id, opts.blowfishSecrets);
 
   const findFromNutParam = nutParam =>
-    decodeNut(nutParam, opts.blowfishSecrets).reduce((a, c) => (a << 8) + c);
+    opts.store.retrieveNut(
+      decodeNut(nutParam, opts.blowfishSecrets).reduce((a, c) => (a << 8) + c)
+    );
 
   const authUrl = code =>
     `${opts.authUrl}?${querystring.encode({
@@ -119,12 +121,10 @@ const createSQRLHandler = options => {
   // Device log in
   const deviceSqrlLogin = async (nut, sqrl) => {
     opts.logger.info({ nut, sqrl }, 'Logging in user');
-
-    await opts.store.identifyNut({
-      id: nut.initial,
-      user_id: sqrl.user_id,
-      identified: new Date().toISOString()
-    });
+    const initialNut = await opts.store.retrieveNut(nut.initial);
+    initialNut.identified = new Date().toISOString();
+    initialNut.user_id = sqrl.user_id;
+    await opts.store.updateNut(initialNut);
   };
 
   // CPS log in
@@ -132,7 +132,7 @@ const createSQRLHandler = options => {
     opts.logger.info({ nut, clientReturn }, 'CPS log in');
     nut.identified = new Date().toISOString();
     clientReturn.url = authUrl(`cps-${formatReturnNut(nut)}`);
-    await opts.store.identifyNut(nut);
+    await opts.store.updateNut(nut);
   };
 
   // Log in an account
@@ -150,7 +150,7 @@ const createSQRLHandler = options => {
     if (userId && nut && !nut.user_id) {
       opts.logger.info({ userId, nut }, 'Claiming nut for user');
       nut.user_id = userId;
-      await opts.store.identifyNut(nut);
+      await opts.store.updateNut(nut);
     }
   };
 
@@ -168,14 +168,19 @@ const createSQRLHandler = options => {
       return null;
     }
     const code = group.substr(separator + 1);
-    const id = findFromNutParam(code);
+    const nut = await findFromNutParam(code);
+    // nut must match ip and be identified and not issued
+    if (!nut || nut.ip !== ip || !nut.identified || nut.issued) {
+      return null;
+    }
+    nut.issued = new Date().toISOString();
+
     // TODO: verify nut is initial or cps
-    return await opts.store.issueNut(id, ip);
+    return await opts.store.updateNut(nut);
   };
 
-  const useNut = async nutParam => await opts.store.useNut(nutParam);
-
-  const withinTimeout = nut => Date.now() - nut.created > opts.nutTimeout;
+  const withinTimeout = nut =>
+    Date.now() - Date.parse(nut.created) > opts.nutTimeout;
 
   const createFollowUpReturn = async (clientReturn, existingNut) => {
     const created = await opts.store.createNut({
@@ -303,11 +308,13 @@ const createSQRLHandler = options => {
         return await createErrorReturn({ ver: 1, tif: 0x80 }, ip);
       }
 
-      const nut = await opts.store.retrieveNut(findFromNutParam(inputNut));
+      const nut = await findFromNutParam(inputNut);
       opts.logger.debug({ nut }, 'Nut lookup');
       if (
         // must have nut
         !nut ||
+        // must not be used
+        nut.used ||
         // Follow up nut's have same hmac
         (nut.initial && signData(request.server) !== nut.hmac) ||
         // nut created within timeout
@@ -316,7 +323,8 @@ const createSQRLHandler = options => {
         opts.logger.debug({ nut }, 'Nut invalid');
         return await createErrorReturn({ ver: 1, tif: 0x20 }, ip);
       }
-      await useNut(nut.id);
+      nut.used = new Date().toISOString();
+      await opts.store.updateNut(nut);
 
       // Do same IP check for every request
       // even if not requested to
