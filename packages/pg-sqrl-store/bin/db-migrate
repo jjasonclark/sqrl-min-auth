@@ -4,21 +4,23 @@
 const path = require('path');
 const fs = require('fs');
 const util = require('util');
-const logger = require('pino')({ level: 'info' });
 const readFile = util.promisify(fs.readFile);
 const pgp = require('pg-promise')();
+const logger = console;
 
 const sqlPath = path.resolve(__dirname, '..', 'sql', 'create.sql');
-const connectionString = 'postgres://sqrl:sqrl@localhost:5432/sqrl';
+const connectionString =
+  process.argv[2] || 'postgres://sqrl:sqrl@localhost:5432/sqrl';
 
 const applySqlFile = async () => {
   try {
-    logger.info({ sqlPath }, 'reading file');
+    logger.info('Reading file %s', sqlPath);
     const commands = (await readFile(sqlPath)).toString();
-    logger.info({ commandLength: commands.length }, 'Read migration file');
+    logger.info('Read migration file: %d bytes', commands.length);
+    logger.info('Connecting to %s', connectionString);
     const db = pgp(connectionString);
     const result = await db.none(commands);
-    logger.info({ result }, 'Apply success');
+    logger.info('Apply success');
     await pgp.end();
     return true;
   } catch (error) {

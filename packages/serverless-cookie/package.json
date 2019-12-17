@@ -10,9 +10,8 @@
     "db:migrate": "sls invoke -f dbMigrate --stage dev",
     "deploy": "sls deploy --stage dev",
     "local": "serve public",
-    "format": "prettier --write '{src/**/*.{js,json,graphql,md},*.md,package.json,*.js}'",
-    "start": "node src/sqrl.js | pino-pretty",
-    "start:db": "docker run --rm -it -p 5432:5432 -e POSTGRES_USER=sqrl -e POSTGRES_PASSWORD=sqrl -e POSTGRES_DB=sqrl postgres:latest"
+    "format": "prettier --write '{src/**/*.{js,json,md},*.md,package.json,*.js}'",
+    "start": "node src/sqrl.js | pino-pretty"
   },
   "keywords": [],
   "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",

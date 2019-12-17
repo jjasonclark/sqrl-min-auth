@@ -7,7 +7,15 @@ const util = require('util');
 const pgp = require('pg-promise')();
 
 const readFile = util.promisify(fs.readFile);
-const sqlPath = path.resolve(__dirname, '..', '..', 'sql/create.sql');
+const sqlPath = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'node_modules',
+  'pg-sqrl-store',
+  'sql',
+  'create.sql'
+);
 const connectionString = process.env.POSTGRES_CONNECTION_STRING;
 
 const handler = async (event, context) => {
