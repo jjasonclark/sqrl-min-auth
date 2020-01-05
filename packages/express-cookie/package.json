@@ -1,26 +1,16 @@
 {
   "name": "express-cookie",
-  "version": "0.0.1",
   "description": "SQRL authentication server using Express and Cookies",
-  "engines": {
-    "node": "12"
-  },
+  "license": "MIT",
+  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
+  "version": "0.0.1",
   "main": "src/index.js",
   "scripts": {
-    "format": "prettier --write '{src/**/*.{js,json,graphql,md},*.md,package.json,*.js}'",
     "dev": "nodemon --config nodemon.json | pino-pretty",
     "dev:db": "docker run --rm -it -p 5432:5432 -e POSTGRES_USER=sqrl -e POSTGRES_PASSWORD=sqrl -e POSTGRES_DB=sqrl postgres:latest",
+    "format": "prettier --write '{src/**/*.{js,json,graphql,md},*.md,package.json,*.js}'",
     "start": "node src/index.js"
   },
-  "keywords": [
-    "sqrl",
-    "authentication",
-    "express",
-    "cookie",
-    "postgres"
-  ],
-  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
-  "license": "MIT",
   "dependencies": {
     "body-parser": "^1.19.0",
     "config": "^3.2.4",
@@ -40,5 +30,15 @@
     "nodemon": "^2.0.1",
     "pino-pretty": "^3.4.0",
     "prettier": "^1.19.1"
+  },
+  "keywords": [
+    "authentication",
+    "cookie",
+    "express",
+    "postgres",
+    "sqrl"
+  ],
+  "engines": {
+    "node": "12"
   }
 }

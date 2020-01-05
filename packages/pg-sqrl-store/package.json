@@ -1,21 +1,15 @@
 {
   "name": "pg-sqrl-store",
-  "version": "0.0.1",
-  "main": "src/index.js",
-  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "license": "MIT",
+  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "repository": {
     "type": "git",
     "url": "https://github.com/jjasonclark/sqrl-min-auth/tree/master/packages/pg-sqrl-store"
   },
-  "keywords": [
-    "sqrl",
-    "authentication",
-    "postgres"
-  ],
+  "version": "0.0.1",
+  "main": "src/index.js",
   "files": [
-    "sql/create.sql",
-    "src/index.js"
+    "sql/create.sql"
   ],
   "scripts": {
     "db": "docker run --rm -it -p 5432:5432 -e POSTGRES_USER=sqrl -e POSTGRES_PASSWORD=sqrl -e POSTGRES_DB=sqrl postgres:latest",
@@ -28,5 +22,13 @@
   },
   "devDependencies": {
     "prettier": ">=1"
+  },
+  "keywords": [
+    "authentication",
+    "postgres",
+    "sqrl"
+  ],
+  "engines": {
+    "node": ">= 8"
   }
 }

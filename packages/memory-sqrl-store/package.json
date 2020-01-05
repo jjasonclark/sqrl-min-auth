@@ -1,18 +1,13 @@
 {
   "name": "memory-sqrl-store",
-  "version": "0.0.1",
-  "main": "src/index.js",
-  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "license": "MIT",
+  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "repository": {
     "type": "git",
     "url": "https://github.com/jjasonclark/sqrl-min-auth/tree/master/packages/memory-sqrl-store"
   },
-  "keywords": [
-    "sqrl",
-    "authentication",
-    "memory"
-  ],
+  "version": "0.0.1",
+  "main": "src/index.js",
   "files": [
     "src/index.js"
   ],
@@ -22,5 +17,13 @@
   "dependencies": {},
   "devDependencies": {
     "prettier": ">=1"
+  },
+  "keywords": [
+    "authentication",
+    "memory",
+    "sqrl"
+  ],
+  "engines": {
+    "node": ">= 8"
   }
 }

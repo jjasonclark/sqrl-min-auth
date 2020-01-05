@@ -1,26 +1,16 @@
 {
   "name": "sqrl-protocol",
-  "version": "0.0.1",
   "description": "SQRL authentication",
-  "engines": {
-    "node": "12"
-  },
-  "main": "src/index.js",
-  "scripts": {
-    "format": "prettier --write '{src/**/*.js,*.md,package.json,*.js}'"
-  },
-  "keywords": [
-    "authentication",
-    "crypto",
-    "ed25519",
-    "hmac",
-    "sqrl"
-  ],
-  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "license": "MIT",
+  "author": "Jason Clark <jason@jjasonclark.com> (https://jjasonclark.com)",
   "repository": {
     "type": "git",
     "url": "https://github.com/jjasonclark/sqrl-min-auth/tree/master/packages/sqrl-protocol"
+  },
+  "version": "0.0.1",
+  "main": "src/index.js",
+  "scripts": {
+    "format": "prettier --write '{src/**/*.js,*.md,package.json,*.js}'"
   },
   "dependencies": {
     "debug": ">=1",
@@ -30,5 +20,15 @@
   },
   "devDependencies": {
     "prettier": ">= 1"
+  },
+  "keywords": [
+    "authentication",
+    "crypto",
+    "ed25519",
+    "hmac",
+    "sqrl"
+  ],
+  "engines": {
+    "node": ">= 8"
   }
 }
