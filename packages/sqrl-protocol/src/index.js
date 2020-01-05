@@ -4,11 +4,11 @@ const base64url = require('universal-base64url');
 const get = require('dlv');
 const querystring = require('querystring');
 const url = require('url');
+const debug = require('debug')('sqrl-protocol');
 const NonceFormatter = require('./nonce-formatter');
 const IdentityProvider = require('./identity-provider');
 const { decodeSQRLPack, encodeSQRLPack } = require('./sqrl-pack');
 const { isValidSignature } = require('./signature');
-const { nullLogger } = require('./null-logger');
 const { signHmac } = require('./hmac');
 
 const idkLength = 43;
@@ -32,7 +32,6 @@ const defaultOptions = base => {
     ? ''
     : `:${base.port}`;
   return {
-    logger: nullLogger(),
     nutTimeout: 60 * 60 * 1000, // 1 hour in ms
     cancelPath: urlJoin(base.pathname, '/sqrl'),
     // used for qry return value
@@ -73,7 +72,7 @@ const createSQRLHandler = options => {
   const signData = what => signHmac(what.toString(), opts.hmacSecret);
 
   const createUser = async () => {
-    opts.logger.info('Creating user');
+    debug('Creating user');
     return await opts.store.createUser();
   };
 
@@ -88,7 +87,7 @@ const createSQRLHandler = options => {
   const updateNut = async nut => await opts.store.updateNut(nut);
 
   const findFromNutParam = nutParam => {
-    opts.logger.debug({ nutParam }, 'Nut lookup');
+    debug('Nut lookup %s', nutParam);
     const nutId = nonceFormatter.parseNutParam(nutParam);
     if (nutId) {
       return retrieveNut(nutId);
@@ -97,14 +96,14 @@ const createSQRLHandler = options => {
   };
 
   const createUrls = async (ip, userId = null) => {
-    opts.logger.debug({ ip }, 'Create urls');
+    debug('Create urls %s', ip);
     const savedNut = await createNut({
       ip,
       initial: null,
       user_id: userId,
       hmac: null
     });
-    opts.logger.debug({ savedNut }, 'Saved nut');
+    debug('Saved nut %O', savedNut);
     const urlReturn = { nut: nonceFormatter.formatReturnNut(savedNut) };
     if (opts.x > 0) {
       urlReturn.x = opts.x;
@@ -157,7 +156,7 @@ const createSQRLHandler = options => {
     const nut = nonceFormatter.formatReturnNut(created);
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({ nut })}`;
-    opts.logger.info({ clientReturn, created }, 'Return value');
+    debug('Return values: %O', { clientReturn, created });
     const body = convertToBody(clientReturn);
     created.hmac = signData(body);
     await updateNut(created);
@@ -174,13 +173,12 @@ const createSQRLHandler = options => {
     const nut = nonceFormatter.formatReturnNut(created);
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({ nut })}`;
-    opts.logger.info({ clientReturn, created }, 'Return value');
+    debug('Return values: %O', { clientReturn, created });
     return convertToBody(clientReturn);
   };
 
   // Log in an account
   const sqrlLogin = async (sqrl, nut, client, clientReturn) => {
-    opts.logger.info({ nut, sqrl, client, clientReturn }, 'Logging in user');
     let loginNut = nut;
     if (client.opt.includes('cps')) {
       // CPS log in
@@ -194,6 +192,7 @@ const createSQRLHandler = options => {
     }
     loginNut.identified = new Date().toISOString();
     loginNut.user_id = sqrl.user_id;
+    debug('Logging in user: %O', loginNut);
     await updateNut(loginNut);
   };
 
@@ -208,7 +207,7 @@ const createSQRLHandler = options => {
         !ip ||
         ip.length > maxIpLength
       ) {
-        opts.logger.debug({ inputNut, ip, body }, 'Invalid inputs');
+        debug('Invalid inputs: %O', { inputNut, ip, body });
         return await createErrorReturn({ ver: 1, tif: 0x80 }, ip);
       }
 
@@ -236,7 +235,7 @@ const createSQRLHandler = options => {
         // valid previous signature
         (client.pidk && !isValidSignature(request, request.pids, client.pidk))
       ) {
-        opts.logger.debug({ request, client }, 'Invalid decoded inputs');
+        debug('Invalid decoded inputs: %O', { request, client });
         return await createErrorReturn({ ver: 1, tif: 0x80 }, ip);
       }
 
@@ -251,7 +250,7 @@ const createSQRLHandler = options => {
         // nut created within timeout
         Date.now() - Date.parse(nut.created) > opts.nutTimeout
       ) {
-        opts.logger.debug({ nut }, 'Nut invalid');
+        debug('Nut invalid: %s', nut);
         return await createErrorReturn({ ver: 1, tif: 0x20 }, ip);
       }
       nut.used = new Date().toISOString();
@@ -268,12 +267,12 @@ const createSQRLHandler = options => {
         client.idk,
         client.pidk
       ]);
-      opts.logger.info({ sqrlData, pSqrlData }, 'SQRL data');
+      debug('SQRL data: %O', { sqrlData, pSqrlData });
 
       const found = [sqrlData, pSqrlData].find(i => get(i, 'user_id'));
       if (found && nut && !nut.user_id) {
-        opts.logger.info({ found, nut }, 'Claiming nut for user');
         nut.user_id = found.user_id;
+        debug('Claiming nut for user %d', nut.user_id);
         await updateNut(nut);
       }
 
@@ -314,13 +313,13 @@ const createSQRLHandler = options => {
         // Pidks can only query and ident
         (client.pidk && !isBasicCommand)
       ) {
-        opts.logger.debug({ nut }, 'Cannot processes');
+        debug('Cannot processes');
         clientReturn.tif |= 0x40 | 0x80;
         return await createFollowUpReturn(clientReturn, nut);
       }
 
       // Process SQRL command
-      opts.logger.info({ clientReturn }, 'Processing command');
+      debug('Processing command: %O', clientReturn);
       switch (client.cmd) {
         case 'query':
           if (sqrlData && sqrlData.disabled) {
@@ -346,18 +345,12 @@ const createSQRLHandler = options => {
               clientReturn.tif |= 0x40;
               // Add the suk value so user can unlock
               clientReturn.suk = sqrlData.suk;
-              opts.logger.info(
-                { clientReturn },
-                'Ident failed on disabled account'
-              );
+              debug('Ident failed on disabled account');
             }
           } else if (pSqrlData) {
             if (pSqrlData.superseded) {
               clientReturn.tif |= 0x200 | 0x40;
-              opts.logger.debug(
-                { clientReturn },
-                'Previous idk has been superseded'
-              );
+              debug('Previous idk has been superseded');
             } else if (
               isValidSignature(request, request.urs, pSqrlData.vuk) &&
               (await identityProvider.create(pSqrlData.user_id, client)) &&
@@ -370,21 +363,18 @@ const createSQRLHandler = options => {
               await sqrlLogin(pSqrlData, nut, client, clientReturn);
             } else {
               clientReturn.tif |= 0x40;
-              opts.logger.info(
-                { clientReturn },
-                'Previous idk unlock signature failed'
-              );
+              debug('Previous idk unlock signature failed');
             }
           } else {
-            opts.logger.info('Unknown idk');
+            debug('Unknown idk');
             const userId = nut.user_id || get(await createUser(), 'id');
             const newSqrl = await identityProvider.create(userId, client);
             if (userId && newSqrl) {
-              opts.logger.debug({ newSqrl }, 'Created new SQRL');
+              debug('Created new SQRL: %O', newSqrl);
               clientReturn.tif |= 0x01;
               await sqrlLogin(newSqrl, nut, client, clientReturn);
             } else {
-              opts.logger.info('Could not create account');
+              debug('Could not create account');
               clientReturn.tif |= 0x40;
             }
           }
@@ -401,7 +391,6 @@ const createSQRLHandler = options => {
             // Command failed
             clientReturn.tif |= 0x40;
             clientReturn.suk = sqrlData.suk;
-            opts.logger.info({ clientReturn }, 'Enable signature failed');
           }
           return await createFollowUpReturn(clientReturn, nut);
         case 'disable':
@@ -419,12 +408,12 @@ const createSQRLHandler = options => {
           }
           return await createFollowUpReturn(clientReturn, nut);
       }
-      opts.logger.debug({ cmd: client.cmd }, 'Unknown command');
+      debug('Unknown command %s', client.cmd);
       // Command failed
       clientReturn.tif |= 0x40 | 0x80;
       return await createFollowUpReturn(clientReturn, nut);
     } catch (error) {
-      opts.logger.error(error);
+      debug(error);
       return await createErrorReturn({ ver: 1, tif: 0x40 | 0x80 }, ip);
     }
   };
