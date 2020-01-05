@@ -4,9 +4,8 @@ const url = require('url');
 const get = require('dlv');
 const cookie = require('cookie');
 const cookieSignature = require('cookie-signature');
-const {
-  cookie: { secret: cookieSecret }
-} = require('../../secrets.json');
+
+const cookieSecret = process.env.COOKIE_SECRET;
 const commonParams = {
   secure: true,
   httpOnly: true,

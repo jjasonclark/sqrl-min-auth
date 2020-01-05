@@ -1,7 +1,8 @@
 service: sqrl-min-auth
 
 custom:
-  database: ${file(./secrets.json):database}
+  secrets: ${file(./secrets.json)}
+  database: ${self:custom.secrets}.database
   applicationName: ${self:service}-${opt:stage,'dev'}
   connectionString:
     Fn::Join:
@@ -78,6 +79,10 @@ functions:
     environment:
       POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
       URL_BASE: ${self:custom.apiBaseUrl}
+      COOKIE_SECRET: ${self:custom.secrets.cookie.secret}
+      HMAC_SECRET: ${self:custom.secrets.nuts.hmac}
+      BLOWFISH_KEY: ${self:custom.secrets.nuts.key}
+      BLOWFISH_IV: ${self:custom.secrets.nuts.iv}
     vpc:
       securityGroupIds:
         - !GetAtt AppDBVPC.DefaultSecurityGroup
@@ -96,6 +101,10 @@ functions:
     environment:
       POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
       URL_BASE: ${self:custom.apiBaseUrl}
+      COOKIE_SECRET: ${self:custom.secrets.cookie.secret}
+      HMAC_SECRET: ${self:custom.secrets.nuts.hmac}
+      BLOWFISH_KEY: ${self:custom.secrets.nuts.key}
+      BLOWFISH_IV: ${self:custom.secrets.nuts.iv}
     vpc:
       securityGroupIds:
         - !GetAtt AppDBVPC.DefaultSecurityGroup
@@ -114,6 +123,10 @@ functions:
     environment:
       POSTGRES_CONNECTION_STRING: ${self:custom.connectionString}
       URL_BASE: ${self:custom.apiBaseUrl}
+      COOKIE_SECRET: ${self:custom.secrets.cookie.secret}
+      HMAC_SECRET: ${self:custom.secrets.nuts.hmac}
+      BLOWFISH_KEY: ${self:custom.secrets.nuts.key}
+      BLOWFISH_IV: ${self:custom.secrets.nuts.iv}
     vpc:
       securityGroupIds:
         - !GetAtt AppDBVPC.DefaultSecurityGroup
@@ -131,6 +144,7 @@ functions:
     timeout: 30
     environment:
       URL_BASE: ${self:custom.apiBaseUrl}
+      COOKIE_SECRET: ${self:custom.secrets.cookie.secret}
     events:
       - http:
           method: GET
@@ -142,6 +156,7 @@ functions:
     timeout: 30
     environment:
       URL_BASE: ${self:custom.apiBaseUrl}
+      COOKIE_SECRET: ${self:custom.secrets.cookie.secret}
     events:
       - http:
           method: GET

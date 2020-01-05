@@ -1,4 +1,4 @@
-'use strict';
+const debug = require('debug')('sqrl-protocol:identity-provider');
 
 const boolResult = async func => {
   try {
@@ -10,14 +10,13 @@ const boolResult = async func => {
 };
 
 class IdentityProvider {
-  constructor(opts) {
-    this.logger = opts.logger;
-    this.store = opts.store;
+  constructor(store) {
+    this.store = store;
   }
 
   async find(idks) {
     const filtered = idks.filter(Boolean);
-    this.logger.info({ idks, filtered }, 'Fetching sqrl data');
+    debug('Fetching sqrl data: %O', filtered);
     const results = await this.store.retrieveSqrl(filtered);
     return results || [];
   }
@@ -35,25 +34,26 @@ class IdentityProvider {
       disabled: null,
       superseded: null
     };
+    debug('Creating sqrl: %O', sqrlData);
     const result = await boolResult(() => this.store.createSqrl(sqrlData));
     return result ? sqrlData : null;
   }
 
   async enable(sqrlData) {
-    this.logger.info({ sqrlData }, 'Enabling sqrl');
+    debug('Enabling sqrl: %O', sqrlData);
     sqrlData.disabled = null;
     // Set flags to current choices
     return await boolResult(() => this.store.updateSqrl(sqrlData));
   }
 
   async disable(sqrlData) {
-    this.logger.info({ sqrlData }, 'Disabling sqrl');
+    debug('Disabling sqrl: %O', sqrlData);
     sqrlData.disabled = new Date().toISOString();
     return await boolResult(() => this.store.updateSqrl(sqrlData));
   }
 
   async superseded(sqrlData) {
-    this.logger.info({ sqrlData }, 'Superseding sqrl');
+    debug('Superseding sqrl: %O', sqrlData);
     const updateTime = new Date().toISOString();
     sqrlData.disabled = sqrlData.disabled || updateTime;
     sqrlData.superseded = updateTime;
@@ -62,7 +62,7 @@ class IdentityProvider {
   }
 
   async remove(sqrlData) {
-    this.logger.info({ sqrlData }, 'Deleting sqrl');
+    debug('Deleting sqrl: %O', sqrlData);
     // Delete login to user association
     return await boolResult(() => this.store.deleteSqrl(sqrlData));
   }

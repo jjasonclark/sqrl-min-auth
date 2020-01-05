@@ -6,7 +6,10 @@ const get = require('dlv');
 const reorder = (objects, names, prop = 'idk') => {
   const output = new Array(names.length);
   let i = 0;
-  const lookup = names.reduce((memo, name) => ({ ...memo, [name]: i++ }), {});
+  const lookup = names.reduce(
+    (memo, name) => Object.assign(memo, { [name]: i++ }),
+    {}
+  );
   for (const obj of objects) {
     const spot = get(lookup, get(obj, prop), -1);
     if (spot >= 0) {
@@ -27,12 +30,12 @@ const cleanString = value => {
   return formatted;
 };
 
-const formatSqrl = result => ({
-  ...result,
-  idk: cleanString(result.idk),
-  suk: cleanString(result.suk),
-  vuk: cleanString(result.vuk)
-});
+const formatSqrl = result =>
+  Object.assign(result, {
+    idk: cleanString(result.idk),
+    suk: cleanString(result.suk),
+    vuk: cleanString(result.vuk)
+  });
 
 const formatNut = result => {
   if (!result) {
@@ -52,7 +55,7 @@ const formatNut = result => {
 };
 
 class PgSqrlStore {
-  constructor(connectionString, options) {
+  constructor(connectionString) {
     this.db = pgp(connectionString);
   }
 

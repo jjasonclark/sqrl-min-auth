@@ -39,6 +39,7 @@ app.engine('mustache', mustacheExpress());
 app.set('view engine', 'mustache');
 app.set('views', path.join(__dirname, 'views'));
 
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   logger.error(err.stack);
   res.status(500);

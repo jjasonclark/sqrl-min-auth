@@ -5,7 +5,7 @@ const get = require('dlv');
 const { createUserCookie } = require('../lib/cookie');
 const baseUrl = process.env.URL_BASE;
 const successUrl = `${baseUrl}/loggedin`;
-const sqrlHandler = require('../lib/sqrl');
+const sqrlHandler = require('../lib/sqrl-handler');
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');

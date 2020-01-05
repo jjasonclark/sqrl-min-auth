@@ -1,5 +1,3 @@
-'use strict';
-
 const { sign } = require('tweetnacl');
 const get = require('dlv');
 

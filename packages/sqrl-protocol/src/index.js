@@ -1,5 +1,3 @@
-'use strict';
-
 const base64url = require('universal-base64url');
 const get = require('dlv');
 const querystring = require('querystring');
@@ -17,6 +15,8 @@ const maxIpLength = 23;
 const maxMessageSize = 4096;
 const maxNutParamLength = 12;
 const protocolVersion = '1';
+const exemptPorts = [80, 443, '80', '443', ''];
+const defaultNutTimeout = 60 * 60 * 1000; // 1 hour in ms
 
 const convertToBody = clientReturn => {
   clientReturn.tif = clientReturn.tif.toString(16);
@@ -28,11 +28,9 @@ const urlJoin = (left, right) =>
   left.endsWith('/') ? left + right.substr(1) : left + right;
 
 const defaultOptions = base => {
-  const portCmd = [80, 443, '80', '443', ''].includes(base.port)
-    ? ''
-    : `:${base.port}`;
+  const portCmd = exemptPorts.includes(base.port) ? '' : `:${base.port}`;
   return {
-    nutTimeout: 60 * 60 * 1000, // 1 hour in ms
+    nutTimeout: defaultNutTimeout,
     cancelPath: urlJoin(base.pathname, '/sqrl'),
     // used for qry return value
     sqrlUrl: urlJoin(base.pathname, '/sqrl'),
@@ -55,7 +53,7 @@ const defaultOptions = base => {
 
 const applyDefaults = (dest, defaults) =>
   Object.keys(defaults).reduce((memo, key) => {
-    if (!memo.hasOwnProperty(key)) {
+    if (!Object.prototype.hasOwnProperty.call(memo, key)) {
       memo[key] = defaults[key];
     }
     return memo;
@@ -63,9 +61,12 @@ const applyDefaults = (dest, defaults) =>
 
 const createSQRLHandler = options => {
   const apiBaseUrl = new url.URL(options.baseUrl);
-  const opts = applyDefaults({ ...options }, defaultOptions(apiBaseUrl));
+  const opts = applyDefaults(
+    Object.assign({}, options),
+    defaultOptions(apiBaseUrl)
+  );
   const nonceFormatter = new NonceFormatter(opts.blowfishSecrets);
-  const identityProvider = new IdentityProvider(opts);
+  const identityProvider = new IdentityProvider(opts.store);
 
   // TODO: validate required options are set
 
@@ -108,10 +109,11 @@ const createSQRLHandler = options => {
     if (opts.x > 0) {
       urlReturn.x = opts.x;
     }
-    const cpsAuthUrl = `${opts.sqrlProtoUrl}?${querystring.encode({
-      ...urlReturn,
-      can: base64url.encode(opts.cancelPath)
-    })}`;
+    const cpsAuthUrl = `${opts.sqrlProtoUrl}?${querystring.encode(
+      Object.assign({}, urlReturn, {
+        can: base64url.encode(opts.cancelPath)
+      })
+    )}`;
     return {
       cps: urlJoin(opts.cpsBaseUrl, `/${base64url.encode(cpsAuthUrl)}`),
       login: `${opts.sqrlProtoUrl}?${querystring.encode(urlReturn)}`,

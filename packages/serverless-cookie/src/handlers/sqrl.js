@@ -2,7 +2,7 @@
 
 const logger = require('pino')({ level: 'debug' });
 const get = require('dlv');
-const sqrlHandler = require('../lib/sqrl');
+const sqrlHandler = require('../lib/sqrl-handler');
 
 const handler = async (event, context) => {
   logger.debug({ event, context }, 'Starting handler');

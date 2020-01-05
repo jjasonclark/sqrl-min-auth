@@ -3,7 +3,7 @@
 const logger = require('pino')({ level: 'info' });
 const get = require('dlv');
 const { getUserCookie } = require('../lib/cookie');
-const sqrlHandler = require('../lib/sqrl');
+const sqrlHandler = require('../lib/sqrl-handler');
 
 const successUrl = `${process.env.URL_BASE}/loggedin`;
 

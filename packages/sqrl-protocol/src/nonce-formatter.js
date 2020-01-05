@@ -1,9 +1,8 @@
-'use strict';
-
 const crypto = require('crypto');
 const base64url = require('universal-base64url');
 
 const alg = 'bf-cbc';
+const Uint32Size = 4;
 
 const isNullOrEmpty = what => what === null || what === '';
 
@@ -28,8 +27,8 @@ const decrypt = (encoded, secrets) => {
 };
 
 const intToBuffer = nut => {
-  const message = new ArrayBuffer(4);
-  const dv = new DataView(message, 0, 4);
+  const message = new ArrayBuffer(Uint32Size);
+  const dv = new DataView(message, 0, Uint32Size);
   dv.setUint32(0, nut.id, false);
   return Buffer.from(message);
 };
@@ -69,8 +68,8 @@ class NonceFormatter {
 
   parseCodeParam(codeParam) {
     const decoded = this._decode(codeParam);
-    const type = decoded.slice(0, 4).toString();
-    const code = decoded.readUInt32BE(4).toString();
+    const type = decoded.slice(0, Uint32Size).toString();
+    const code = decoded.readUInt32BE(Uint32Size).toString();
     if (isNullOrEmpty(code) || isNullOrEmpty(type)) {
       return {};
     }

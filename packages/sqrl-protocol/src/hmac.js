@@ -1,5 +1,3 @@
-'use strict';
-
 const { createHmac } = require('crypto');
 const base64url = require('universal-base64url');
 
