@@ -21,6 +21,6 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "prettier": ">=1.19.1"
+    "prettier": ">=1"
   }
 }

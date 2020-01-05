@@ -2,10 +2,10 @@
 
 class MemorySqrlStore {
   constructor(options) {
-    this.logger = options.logger;
-    this.nuts = {};
-    this.sqrl = {};
-    this.users = {};
+    const opts = options || {};
+    this.nuts = opts.nuts || {};
+    this.sqrl = opts.sqrl || {};
+    this.users = opts.users || {};
   }
 
   async createNut(it) {

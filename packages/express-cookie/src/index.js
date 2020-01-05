@@ -26,8 +26,7 @@ const httpsConfig = config.util.toObject(config.get('https'));
 const logger = pino(loggerConfig);
 const sqrlHandler = createSQRLHandler({
   ...sqrlConfig,
-  logger,
-  store: new MemorySqrlStore({ logger })
+  store: new MemorySqrlStore()
 });
 
 // Exposed server

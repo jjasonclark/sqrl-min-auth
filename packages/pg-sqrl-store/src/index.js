@@ -54,7 +54,6 @@ const formatNut = result => {
 class PgSqrlStore {
   constructor(connectionString, options) {
     this.db = pgp(connectionString);
-    this.logger = options.logger;
   }
 
   async createNut(it) {
