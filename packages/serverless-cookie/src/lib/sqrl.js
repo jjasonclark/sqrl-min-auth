@@ -12,7 +12,11 @@ const sqrlHandler = createSQRLHandler({
   baseUrl,
   logger,
   store: new PgSqrlStore(connectionString, { logger }),
-  hmacSecret: secrets.nuts.hmac
+  hmacSecret: secrets.nuts.hmac,
+  blowfishSecrets: {
+    key: secrets.nuts.key,
+    iv: secrets.nuts.iv
+  }
 });
 
 module.exports = sqrlHandler;
