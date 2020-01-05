@@ -13,9 +13,8 @@ const path = require('path');
 const pino = require('pino');
 const stoppable = require('stoppable');
 const { createSQRLHandler } = require('sqrl-protocol');
-const PgSqrlStore = require('pg-sqrl-store');
+const MemorySqrlStore = require('memory-sqrl-store');
 
-const connectionString = config.get('db.connectionString');
 const sqrlConfig = config.get('sqrl');
 const stopGrace = config.get('stopGrace');
 const cookieSecret = config.get('cookie.secret');
@@ -28,7 +27,7 @@ const logger = pino(loggerConfig);
 const sqrlHandler = createSQRLHandler({
   ...sqrlConfig,
   logger,
-  store: new PgSqrlStore(connectionString, { logger })
+  store: new MemorySqrlStore({ logger })
 });
 
 // Exposed server

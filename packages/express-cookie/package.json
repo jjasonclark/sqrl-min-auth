@@ -29,9 +29,9 @@
     "express": "^4.17.1",
     "express-pino-logger": "^4.0.0",
     "helmet": "^3.21.2",
+    "memory-sqrl-store": "file:../memory-sqrl-store",
     "mustache": "^3.1.0",
     "mustache-express": "^1.3.0",
-    "pg-sqrl-store": "file:../pg-sqrl-store",
     "pino": "^5.14.0",
     "sqrl-protocol": "file:../sqrl-protocol",
     "stoppable": "^1.1.0"
