@@ -127,6 +127,13 @@ class PgSqrlStore {
     return user;
   }
 
+  async retrieveUser(id) {
+    return await this.db.oneOrNone(
+      'SELECT id,created FROM users WHERE id = ${id}',
+      { id }
+    );
+  }
+
   async deleteUser(id) {
     // Delete user
     await this.db.none('DELETE FROM users WHERE id = ${id}', { id });

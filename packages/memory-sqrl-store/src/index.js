@@ -81,6 +81,10 @@ class MemorySqrlStore {
     return user;
   }
 
+  async retrieveUser(id) {
+    return this.users[id];
+  }
+
   async deleteUser(id) {
     // Delete user
     if (this.users[id]) {

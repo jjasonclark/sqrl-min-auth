@@ -14,9 +14,9 @@ const handler = async (event, context) => {
   const requestIp = get(event, 'requestContext.identity.sourceIp');
   logger.info({ codeParam, requestIp }, 'Searching for code');
 
-  const foundNut = await sqrlHandler.useCode(codeParam, requestIp);
-  if (foundNut) {
-    logger.info({ foundNut, codeParam }, 'Found unused code');
+  const user = await sqrlHandler.useCode(codeParam, requestIp);
+  if (user) {
+    logger.info({ user, codeParam }, 'Found unused code');
     const returnValue = {
       statusCode: 302,
       headers: {
@@ -26,7 +26,7 @@ const handler = async (event, context) => {
         Vary: 'Origin',
         'Cache-control': 'no-cache',
         'Content-Length': '0',
-        'Set-Cookie': createUserCookie(foundNut.user_id, baseUrl),
+        'Set-Cookie': createUserCookie(user.id, baseUrl),
         Location: successUrl
       },
       body: ''

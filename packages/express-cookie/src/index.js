@@ -96,10 +96,10 @@ app.get('/authenticate', async (req, res) => {
     const codeParam = req.query.code;
     const requestIp = req.connection.remoteAddress;
     logger.info({ codeParam, requestIp }, 'authenticate');
-    const foundNut = await sqrlHandler.useCode(codeParam, requestIp);
-    logger.debug({ foundNut }, 'Found nut');
-    if (foundNut && foundNut.user_id) {
-      res.cookie('user', foundNut.user_id.toString(), cookieConfig);
+    const user = await sqrlHandler.useCode(codeParam, requestIp);
+    logger.debug({ user }, 'Found user');
+    if (user && user.id) {
+      res.cookie('user', user.id.toString(), cookieConfig);
       res.redirect(302, '/loggedin');
       return;
     }
