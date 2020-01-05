@@ -11,6 +11,13 @@ const { isValidSignature } = require('./signature');
 const { nullLogger } = require('./null-logger');
 const { signHmac } = require('./hmac');
 
+const idkLength = 43;
+const maxCmdLength = 7;
+const maxIpLength = 23;
+const maxMessageSize = 4096;
+const maxNutParamLength = 12;
+const protocolVersion = '1';
+
 const convertToBody = clientReturn => {
   clientReturn.tif = clientReturn.tif.toString(16);
   const rawReturn = encodeSQRLPack(clientReturn);
@@ -81,6 +88,7 @@ const createSQRLHandler = options => {
   const updateNut = async nut => await opts.store.updateNut(nut);
 
   const findFromNutParam = nutParam => {
+    opts.logger.debug({ nutParam }, 'Nut lookup');
     const nutId = nonceFormatter.parseNutParam(nutParam);
     if (nutId) {
       return retrieveNut(nutId);
@@ -146,7 +154,6 @@ const createSQRLHandler = options => {
       user_id: existingNut.user_id,
       hmac: null
     });
-    // TODO: don't mutate clientReturn
     const nut = nonceFormatter.formatReturnNut(created);
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({ nut })}`;
@@ -165,7 +172,6 @@ const createSQRLHandler = options => {
       hmac: null
     });
     const nut = nonceFormatter.formatReturnNut(created);
-    // TODO: don't mutate clientReturn
     clientReturn.nut = nut;
     clientReturn.qry = `${opts.sqrlUrl}?${querystring.encode({ nut })}`;
     opts.logger.info({ clientReturn, created }, 'Return value');
@@ -191,23 +197,38 @@ const createSQRLHandler = options => {
     await updateNut(loginNut);
   };
 
-  // TODO: Validate size of incoming body, request, and client
-  // TODO: verify client param has required values such as idk
-  const isValidInput = (client, inputNut, request) => {
-    return !client || !inputNut || !request || !request.server || !request.ids;
-  };
-
   const handler = async (ip, inputNut, body) => {
     try {
+      // validate input params
+      if (
+        !body ||
+        body.toString().length > maxMessageSize ||
+        !inputNut ||
+        inputNut.length > maxNutParamLength ||
+        !ip ||
+        ip.length > maxIpLength
+      ) {
+        opts.logger.debug({ inputNut, ip, body }, 'Invalid inputs');
+        return await createErrorReturn({ ver: 1, tif: 0x80 }, ip);
+      }
+
       const request = querystring.decode(body);
       const client = decodeSQRLPack(
         base64url.decode(get(request, 'client', ''))
       );
-      opts.logger.info({ request, client }, 'Decoded request');
 
+      // validate decoded params
       if (
-        // must have client, inputNut, and request
-        isValidInput(client, inputNut, request) ||
+        !client ||
+        client.ver !== protocolVersion ||
+        !client.idk ||
+        client.idk.length !== idkLength ||
+        !client.opt ||
+        !client.cmd ||
+        client.cmd.length > maxCmdLength ||
+        !request ||
+        !request.server ||
+        !request.ids ||
         // server should include nut
         request.server.includes(querystring.encode({ nut: inputNut })) ||
         // valid signature
@@ -215,12 +236,11 @@ const createSQRLHandler = options => {
         // valid previous signature
         (client.pidk && !isValidSignature(request, request.pids, client.pidk))
       ) {
-        opts.logger.debug({ inputNut }, 'Invalid input');
+        opts.logger.debug({ request, client }, 'Invalid decoded inputs');
         return await createErrorReturn({ ver: 1, tif: 0x80 }, ip);
       }
 
       const nut = await findFromNutParam(inputNut);
-      opts.logger.debug({ nut }, 'Nut lookup');
       if (
         // must have nut
         !nut ||
