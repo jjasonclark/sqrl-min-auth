@@ -10,15 +10,17 @@
   "version": "0.0.1",
   "main": "src/index.js",
   "files": [
-    "src/"
+    "src/*.js"
   ],
   "scripts": {
     "format": "prettier --write '{src/**/*.js,*.md,package.json,*.js}'",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "test": "jest --collect-coverage"
   },
   "dependencies": {
     "debug": ">=1",
     "dlv": "~1",
+    "memory-sqrl-store": "file:../memory-sqrl-store",
     "tweetnacl": "~1",
     "universal-base64url": "~1"
   },
@@ -27,8 +29,11 @@
     "eslint-config-prettier": "^6.9.0",
     "eslint-plugin-filenames": "^1.3.2",
     "eslint-plugin-import": "^2.19.1",
+    "eslint-plugin-jest": "^23.3.0",
     "eslint-plugin-node": "^11.0.0",
     "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-test-filenames": "^0.0.1",
+    "jest": "^24.9.0",
     "prettier": ">= 1"
   },
   "keywords": [

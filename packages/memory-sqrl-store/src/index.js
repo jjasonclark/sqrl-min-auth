@@ -11,7 +11,7 @@ class MemorySqrlStore {
   async createNut(it) {
     // TODO: verify write
     const newNut = {
-      id: Object.keys(this.nuts).length,
+      id: Object.keys(this.nuts).length + 1,
       initial: it.initial,
       hmac: it.hmac,
       ip: it.ip,
@@ -74,7 +74,7 @@ class MemorySqrlStore {
   async createUser() {
     // Create an account
     const user = {
-      id: Object.keys(this.users).length,
+      id: Object.keys(this.users).length + 1,
       created: new Date().toISOString()
     };
     this.users[user.id] = user;

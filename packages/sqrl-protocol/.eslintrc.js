@@ -9,6 +9,7 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:promise/recommended',
     'plugin:node/recommended',
+    'plugin:jest/recommended',
     'prettier'
   ],
   globals: {
@@ -19,8 +20,10 @@ module.exports = {
     ecmaVersion: 2018,
     sourceType: 'module'
   },
-  plugins: ['filenames', 'import', 'promise', 'node'],
+  plugins: ['filenames', 'jest', 'import', 'promise', 'node', 'test-filenames'],
   rules: {
-    'filenames/match-exported': [2, [null, 'kebab', 'snake']]
+    'filenames/match-exported': [2, [null, 'kebab', 'snake']],
+    'test-filenames/no-subdirs': 'error',
+    'test-filenames/suffix': 'error'
   }
 };
